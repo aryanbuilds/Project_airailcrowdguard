@@ -4,9 +4,14 @@ import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Loader2, RefreshCw, AlertCircle, Map as MapIcon, List as ListIcon, ShieldCheck } from "lucide-react";
 import IncidentCard from "@/components/IncidentCard";
-import IncidentMap from "@/components/IncidentMap";
-import IncidentDetailModal from "@/components/IncidentDetailModal";
 import SeverityBadge from "@/components/SeverityBadge";
+import IncidentDetailModal from "@/components/IncidentDetailModal";
+import dynamic from "next/dynamic";
+
+const IncidentMap = dynamic(() => import("@/components/IncidentMap"), { 
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-slate-100 flex items-center justify-center animate-pulse">Loading Map...</div>
+});
 
 interface Incident {
   id: string;
@@ -184,7 +189,7 @@ export default function Dashboard() {
                 />
               ))
             ) : (
-              <div className="h-full w-full rounded-2xl border-4 border-white bg-white shadow-xl overflow-hidden relative">
+              <div className="h-full w-full min-h-[500px] rounded-2xl border-4 border-white bg-white shadow-xl overflow-hidden relative">
                 <IncidentMap 
                   incidents={incidents} 
                   onMarkerClick={(id) => setSelectedIncidentId(id)} 

@@ -97,12 +97,17 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
             defect_types = [d["defect_type"] for d in results["detections"] if d["defect_type"]]
             primary_defect = max(set(defect_types), key=defect_types.count) if defect_types else "unknown"
             
+            # Fetch reporter info from media
+            media_item = db.query(Media).filter(Media.id == media_id).first()
+            
             incident = Incident(
                 id=f"INC-{media_id[:8]}",
                 media_id=media_id,
                 lat=lat or 0.0,
                 lng=lng or 0.0,
                 timestamp=datetime.now().isoformat(),
+                reporter_name=media_item.reporter_name if media_item else None,
+                reporter_phone=media_item.reporter_phone if media_item else None,
                 tampering_score=tampering_score,
                 fault_type=primary_defect,
                 severity=severity,
@@ -128,6 +133,8 @@ async def upload_media(
     lat: Optional[float] = Form(None),
     lng: Optional[float] = Form(None),
     reporter_id: Optional[str] = Form(None),
+    reporter_name: Optional[str] = Form(None),
+    reporter_phone: Optional[str] = Form(None),
     timestamp: Optional[str] = Form(None),
     db: Session = Depends(get_db)
 ):
@@ -157,6 +164,8 @@ async def upload_media(
         lng=lng,
         timestamp=timestamp,
         reporter_id=reporter_id,
+        reporter_name=reporter_name,
+        reporter_phone=reporter_phone,
         status="uploaded"
     )
     db.add(new_media)
@@ -203,7 +212,9 @@ def get_incidents(
             "fault_type": inc.fault_type,
             "severity": inc.severity,
             "status": inc.status,
-            "evidence_frames": inc.evidence_frames
+            "evidence_frames": inc.evidence_frames,
+            "reporter_name": inc.reporter_name,
+            "reporter_phone": inc.reporter_phone
         }
         for inc in incidents
     ]

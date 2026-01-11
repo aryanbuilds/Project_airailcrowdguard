@@ -23,6 +23,8 @@ class Media(Base):
     lng = Column(Float, nullable=True)
     timestamp = Column(String) # ISO format
     reporter_id = Column(String, nullable=True)
+    reporter_name = Column(String, nullable=True)
+    reporter_phone = Column(String, nullable=True)
     status = Column(String, default="processing") # processing, analyzed, error
 
 class Incident(Base):
@@ -33,6 +35,9 @@ class Incident(Base):
     lat = Column(Float)
     lng = Column(Float)
     timestamp = Column(String)
+    
+    reporter_name = Column(String, nullable=True)
+    reporter_phone = Column(String, nullable=True)
     
     tampering_score = Column(Float) # 0.0 to 1.0
     fault_type = Column(String) # crack, tampering, etc.

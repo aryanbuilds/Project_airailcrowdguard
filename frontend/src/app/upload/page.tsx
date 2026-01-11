@@ -9,6 +9,8 @@ export default function UploadPage() {
   const { isLoaded, isSignedIn, user } = useUser();
   const [file, setFile] = useState<File | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [success, setSuccess] = useState<string | null>(null);
@@ -18,14 +20,9 @@ export default function UploadPage() {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
-      
-      // Basic validation for video length if possible on client side
       if (selectedFile.type.startsWith("video/")) {
-        // We can't easily check duration before upload without loading metadata,
-        // but we can warn the user.
         console.log("Video selected");
       }
-      
       setFile(selectedFile);
       setError(null);
     }
@@ -57,13 +54,7 @@ export default function UploadPage() {
       },
       (err) => {
         console.error("Geolocation error:", err);
-        let msg = "Unable to retrieve location.";
-        if (err.code === 1) msg = "Location permission denied. Please enable GPS.";
-        else if (err.code === 2) msg = "Position unavailable.";
-        else if (err.code === 3) msg = "Location request timed out.";
-        
-        setError(`${msg} Using 0.0, 0.0 as fallback.`);
-        setLocation({ lat: 0, lng: 0 }); // Fallback to allow submission
+        // Soft error, don't block
         setLoading(false);
       },
       options
@@ -82,6 +73,9 @@ export default function UploadPage() {
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("reporter_name", name);
+    formData.append("reporter_phone", phone);
+    
     if (location) {
       formData.append("lat", location.lat.toString());
       formData.append("lng", location.lng.toString());
@@ -104,6 +98,8 @@ export default function UploadPage() {
       setSuccess(data.media_id);
       setFile(null);
       setLocation(null);
+      setName("");
+      setPhone("");
     } catch (err: any) {
       setError(err.message || "An error occurred during upload.");
     } finally {
@@ -145,6 +141,31 @@ export default function UploadPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-slate-700">Reporter Name</label>
+              <input
+                type="text"
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                className="mt-1 block w-full rounded-xl border border-slate-300 px-4 py-3 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
+              />
+            </div>
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-slate-700">Phone Number</label>
+              <input
+                type="tel"
+                id="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+91 98765 43210"
+                className="mt-1 block w-full rounded-xl border border-slate-300 px-4 py-3 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 sm:text-sm"
+              />
+            </div>
+          </div>
+
           {/* Media Capture Area */}
           <div 
             onClick={() => fileInputRef.current?.click()}
@@ -183,12 +204,12 @@ export default function UploadPage() {
             />
           </div>
 
-          {/* Location Area */}
+          {/* Location Area (Optional) */}
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <MapPin className="h-5 w-5 text-slate-400" />
-                <span className="font-semibold text-slate-900">Incident Location</span>
+                <span className="font-semibold text-slate-900">Incident Location <span className="text-xs font-normal text-slate-500">(Optional)</span></span>
               </div>
               <button
                 type="button"
@@ -205,7 +226,7 @@ export default function UploadPage() {
                 Location captured: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
               </div>
             ) : (
-              <p className="text-sm text-slate-500 italic">Allow GPS access for better investigation accuracy.</p>
+              <p className="text-sm text-slate-500 italic">Location is optional but helps in faster response.</p>
             )}
           </div>
 

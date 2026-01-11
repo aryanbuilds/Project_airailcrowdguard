@@ -12,26 +12,30 @@ Field workers or citizens can upload photos or short video clips (5-10s) of rail
 ## Architecture
 
 ```
-                    MOBILE UPLOAD FLOW
-┌─────────────────┐        HTTPS         ┌─────────────────┐
-│  Mobile Browser │ ──────────────────►  │  Next.js        │
-│                 │     (via ngrok)      │  Frontend       │
-│ • Camera Upload │                      │ • Clerk Auth    │
-│ • Geolocation   │                      │ • /upload page  │
-└─────────────────┘                      └────────┬────────┘
-                                                  │
-                                    POST /api/v1/media/upload
-                                                  │
-                                                  ▼
-                                         ┌─────────────────┐
-                                         │  FastAPI        │
-                                         │  Backend        │
+                    MOBILE UPLOAD FLOW                                  IoT / SCADA FLOW
+┌─────────────────┐        HTTPS         ┌─────────────────┐       ┌──────────────────────┐
+│  Mobile Browser │ ──────────────────►  │  Next.js        │       │  IoT Edge Device     │
+│                 │     (via ngrok)      │  Frontend       │       │  (Jetson/Raspberry)  │
+│ • Camera Upload │                      │ • Clerk Auth    │       │                      │
+│ • Geolocation   │                      │ • /upload page  │       │ • CCTV Stream        │
+└─────────────────┘                      └────────┬────────┘       │ • Vibration Sensors  │
+                                                  │                └──────────┬───────────┘
+                                    POST /api/v1/media/upload                 │
+                                                  │                           │ (MQTT / 5G)
+                                                  │                           ▼
+                                                  │                ┌──────────────────────┐
+                                                  │                │  MQTT Broker         │
+                                                  │                │  (Mosquitto/HiveMQ)  │
+                                                  ▼                └──────────┬───────────┘
+                                         ┌─────────────────┐                  │
+                                         │  FastAPI        │ ◄────────────────┘
+                                         │  Backend        │          Sub: /railway/alerts
                                          │                 │
                                          │ • Frame Extract │
                                          │ • ffmpeg 1fps   │
                                          └────────┬────────┘
                                                   │
-                              TWO-STAGE CASCADE INFERENCE
+                                      TWO-STAGE CASCADE INFERENCE
                                                   │
                     ┌─────────────────────────────┴─────────────────────────────┐
                     │                                                           │
@@ -65,6 +69,14 @@ Field workers or citizens can upload photos or short video clips (5-10s) of rail
 │ • PDF Download  │
 └─────────────────┘
 ```
+
+### MQTT & IoT Architecture
+
+The system supports **IoT-to-Cloud** ingestion via MQTT for automated monitoring:
+
+1.  **Edge Detection**: IoT devices (Jetson Nano) run the `Binary Model` locally on CCTV streams.
+2.  **Publish**: If a defect is found, a JSON alert with the image is published to `railway/alerts/v1`.
+3.  **Process**: The Backend subscribes to this topic and runs the `Detailed Model` for verification.
 
 ## Tech Stack
 
@@ -158,7 +170,8 @@ python scripts/visualize_dataset.py --mode cascade --samples 10
 
 ### 4. Start Backend (FastAPI)
 ```bash
-uvicorn backend.main:app --reload --port 8000
+# Exclude frontend directory from watch to prevent crashes
+uvicorn backend.main:app --reload --port 8000 --reload-exclude "frontend/*"
 ```
 
 ### 5. Start Frontend (Next.js)
@@ -213,10 +226,10 @@ See `STAGES.json` for full plan:
 |-------|-------|--------|
 | 1 | Repo Scaffolding & Cleanup | Completed |
 | 2 | FastAPI Backend & Uploads | Completed |
-| 3 | Two-Stage YOLOv8 Pipeline | In Progress |
-| 4 | Next.js Frontend: Uploads | Pending |
-| 5 | Operator Dashboard | Pending |
-| 6 | Demo & Ngrok Setup | Pending |
+| 3 | Two-Stage YOLOv8 Pipeline | Completed |
+| 4 | Next.js Frontend: Uploads | Completed |
+| 5 | Operator Dashboard | Completed |
+| 6 | Demo & Ngrok Setup | In Progress |
 
 ## Troubleshooting
 

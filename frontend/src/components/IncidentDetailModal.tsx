@@ -15,6 +15,8 @@ interface Incident {
   severity: string;
   status: string;
   evidence_frames?: string[];
+  reporter_name?: string;
+  reporter_phone?: string;
 }
 
 export default function IncidentDetailModal({ 
@@ -121,6 +123,19 @@ export default function IncidentDetailModal({
                 </a>
               </div>
             </div>
+            
+            {(incident.reporter_name || incident.reporter_phone) && (
+              <div className="flex items-start gap-3 pt-2 border-t border-slate-100">
+                <Fingerprint className="h-5 w-5 text-slate-400 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-slate-900 italic">Reported By</p>
+                  <p className="text-sm text-slate-600">
+                    {incident.reporter_name || "Anonymous"} 
+                    {incident.reporter_phone && <span className="text-slate-400"> ({incident.reporter_phone})</span>}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="mt-auto space-y-3 pt-6 border-t">
