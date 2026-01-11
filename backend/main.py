@@ -39,12 +39,47 @@ app.mount("/frames", StaticFiles(directory=str(FRAMES_DIR)), name="frames")
 # Initialize DB and load ML models
 init_db()
 
+import logging
+
+# Logging Setup
+LOG_FILE = Path("logs") / "app.log"
+LOG_FILE.parent.mkdir(exist_ok=True)
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%H:%M:%S"
+)
+
+def log_event(message: str, level="INFO"):
+    """Write log to file and print to console."""
+    print(f"[{level}] {message}")
+    if level == "ERROR":
+        logging.error(message)
+    else:
+        logging.info(message)
+
 @app.on_event("startup")
 async def startup_event():
     """Load ML models on startup."""
-    print("Loading ML models...")
+    log_event("Starting up RailSafe API...", "INFO")
+    log_event("Loading ML models...", "INFO")
     load_models()
-    print("API ready!")
+    log_event("Models loaded successfully. API Ready.", "SUCCESS")
+
+@app.get("/api/v1/logs")
+def get_logs():
+    """Get the last 100 lines of logs."""
+    if not LOG_FILE.exists():
+        return {"logs": ["No logs available yet."]}
+    
+    try:
+        with open(LOG_FILE, "r") as f:
+            lines = f.readlines()
+            return {"logs": [line.strip() for line in lines[-100:]]}
+    except Exception as e:
+        return {"logs": [f"Error reading logs: {str(e)}"]}
+
 
 
 def process_media_background(media_id: str, file_path: Path, media_type: str, lat: float, lng: float, db: Session):
@@ -54,7 +89,7 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
     frame_output_dir = FRAMES_DIR / media_id
     frame_output_dir.mkdir(exist_ok=True)
 
-    print(f"Processing media {media_id}...")
+    log_event(f"Processing media background task for {media_id}...", "INFO")
 
     try:
         results = {}
@@ -66,14 +101,14 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
             temp_video_path = frame_output_dir / "temp_annotated.mp4"
             final_video_path = frame_output_dir / "annotated.mp4"
             
-            print(f"Annotating video: {file_path} -> {temp_video_path}")
+            log_event(f"Annotating video frame sequence: {file_path}", "INFO")
             
             # Step 1: Run CV2 / YOLO annotation (Produces raw MP4)
             results = annotate_video(str(file_path), str(temp_video_path), target_fps=16)
             
             # Step 2: Use FFmpeg to re-encode for Web Compatibility (H.264 + Faststart)
             if temp_video_path.exists():
-                print("Re-encoding video for web compatibility...")
+                log_event("Re-encoding video for web compatibility (H.264)...", "INFO")
                 ffmpeg_cmd = [
                     "ffmpeg",
                     "-i", str(temp_video_path),
@@ -87,7 +122,7 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
                 ]
                 try:
                     subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                    print(f"Video re-encoded successfully: {final_video_path}")
+                    log_event(f"Video re-encoded successfully: {final_video_path}", "SUCCESS")
                     # Remove temp file
                     temp_video_path.unlink()
                     results["video_file"] = "annotated.mp4"
@@ -97,14 +132,14 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
                     temp_video_path.replace(final_video_path)
                     results["video_file"] = "annotated.mp4"
             
-            print(f"Video processing complete. Score: {results['tampering_score']}")
+            log_event(f"Video processing complete. Tampering Score: {results.get('tampering_score')}", "SUCCESS")
 
         elif media_type == "image":
             # Image logic (existing)
             target_path = frame_output_dir / "frame_001.jpg"
             shutil.copy(file_path, target_path)
             
-            print(f"Running cascade inference on {media_id}...")
+            log_event(f"Running cascade inference on {media_id}...", "INFO")
             results = process_frames(str(frame_output_dir))
             
             # Add single frame to detection list
@@ -114,7 +149,7 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
         tampering_score = results.get("tampering_score", 0.0)
         severity = get_severity_level(tampering_score)
         
-        print(f"Tampering Score: {tampering_score} | Severity: {severity}")
+        log_event(f"Analysis Complete. Score: {tampering_score} | Severity: {severity}", "INFO")
         
         # Step 3: Update media status
         media_item = db.query(Media).filter(Media.id == media_id).first()
@@ -161,10 +196,10 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
             )
             db.add(incident)
             db.commit()
-            print(f"Incident created: {incident.id}")
+            log_event(f"Incident created: {incident.id}", "SUCCESS")
 
     except Exception as e:
-        print(f"Error processing media {media_id}: {e}")
+        log_event(f"Error processing media {media_id}: {e}", "ERROR")
         media_item = db.query(Media).filter(Media.id == media_id).first()
         if media_item:
             media_item.status = "error"

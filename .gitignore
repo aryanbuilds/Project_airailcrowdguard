@@ -119,9 +119,9 @@ venv.bak/
 
 # mkdocs documentation
 /site
-*/frames
+/frames
 */annotated.mp4
-*/uploads
+/uploads
 
 
 # mypy

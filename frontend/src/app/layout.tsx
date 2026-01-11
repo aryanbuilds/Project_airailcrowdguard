@@ -46,6 +46,7 @@ export default function RootLayout({
                   <div className="flex items-center gap-4">
                     <a href="/upload" className="text-sm font-medium text-muted-foreground hover:text-foreground font-bold italic">Report</a>
                     <a href="/dashboard" className="text-sm font-medium text-muted-foreground hover:text-foreground font-bold italic">Dashboard</a>
+                    <a href="/console" className="text-sm font-medium text-muted-foreground hover:text-foreground font-bold italic">Console</a>
                     <div className="flex items-center gap-2 pl-4 border-l">
                       <div className="flex flex-col items-end">
                         <span className="text-sm font-bold">Admin User</span>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, RefreshCw, AlertCircle, Map as MapIcon, List as ListIcon, ShieldCheck } from "lucide-react";
+import Link from "next/link";
+import { Loader2, RefreshCw, AlertCircle, Map as MapIcon, List as ListIcon, ShieldCheck, Terminal, Upload } from "lucide-react";
+
 import IncidentCard from "@/components/IncidentCard";
 import SeverityBadge from "@/components/SeverityBadge";
 import IncidentDetailModal from "@/components/IncidentDetailModal";
@@ -92,6 +94,22 @@ export default function Dashboard() {
             <p className="text-sm text-slate-500">Monitoring {incidents.length} active anomalies</p>
           </div>
           <div className="flex items-center gap-3">
+            <Link 
+              href="/console" 
+              target="_blank"
+              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-900 px-3 py-1.5 text-sm font-bold text-white hover:bg-slate-800 transition-colors"
+            >
+              <Terminal className="h-4 w-4" />
+              Console
+            </Link>
+            <Link 
+              href="/upload" 
+              className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-bold text-blue-700 hover:bg-blue-100 transition-colors"
+            >
+              <Upload className="h-4 w-4" />
+              Upload
+            </Link>
+            <div className="h-6 w-px bg-slate-200 mx-1"></div>
             <div className="flex rounded-lg bg-slate-100 p-1">
               <button 
                 onClick={() => setView('list')}
