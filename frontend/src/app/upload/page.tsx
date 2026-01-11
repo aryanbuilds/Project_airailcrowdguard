@@ -1,12 +1,10 @@
 "use client";
 
 import { useState, useRef } from "react";
-import { useUser } from "@clerk/nextjs";
 import { Camera, Video, MapPin, Upload, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import Link from "next/link";
 
 export default function UploadPage() {
-  const { isLoaded, isSignedIn, user } = useUser();
   const [file, setFile] = useState<File | null>(null);
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [name, setName] = useState("");
@@ -80,9 +78,9 @@ export default function UploadPage() {
       formData.append("lat", location.lat.toString());
       formData.append("lng", location.lng.toString());
     }
-    if (user) {
-      formData.append("reporter_id", user.id);
-    }
+    
+    // Dummy ID for non-auth mode
+    formData.append("reporter_id", "dummy-admin-user");
 
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/media/upload`, {
@@ -107,13 +105,14 @@ export default function UploadPage() {
     }
   };
 
-  if (!isLoaded) return <div className="flex h-96 items-center justify-center"><Loader2 className="h-8 w-8 animate-spin text-blue-600" /></div>;
-
   return (
     <div className="container mx-auto max-w-lg px-4 py-12">
       <div className="mb-8 text-center">
         <h1 className="text-3xl font-bold text-slate-900">Report an Issue</h1>
         <p className="mt-2 text-slate-600">Submit evidence of track defects or tampering.</p>
+        <div className="mt-2 inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800">
+           Bypass Mode Active
+        </div>
       </div>
 
       {success ? (

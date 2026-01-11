@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useUser } from "@clerk/nextjs";
 import { Loader2, RefreshCw, AlertCircle, Map as MapIcon, List as ListIcon, ShieldCheck } from "lucide-react";
 import IncidentCard from "@/components/IncidentCard";
 import SeverityBadge from "@/components/SeverityBadge";
@@ -26,7 +25,6 @@ interface Incident {
 }
 
 export default function Dashboard() {
-  const { isLoaded, isSignedIn, user } = useUser();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,48 +76,11 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
-      fetchIncidents();
-      const interval = setInterval(fetchIncidents, 10000); // Poll every 10s
-      return () => clearInterval(interval);
-    }
-  }, [isLoaded, isSignedIn]);
+    fetchIncidents();
+    const interval = setInterval(fetchIncidents, 10000); // Poll every 10s
+    return () => clearInterval(interval);
+  }, []);
 
-  if (!isLoaded || (loading && isSignedIn)) {
-    return (
-      <div className="flex h-[80vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-4 text-slate-400">
-          <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-          <p className="font-medium animate-pulse">Initializing Dashboard...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!isSignedIn) {
-    return (
-      <div className="flex h-[80vh] flex-col items-center justify-center p-4 text-center">
-        <AlertCircle className="h-16 w-16 text-amber-500" />
-        <h1 className="mt-4 text-2xl font-bold">Authentication Required</h1>
-        <p className="mt-2 text-slate-600 text-balance max-w-sm">Please sign in with your official credentials to access the security dashboard.</p>
-        <a href="/" className="mt-6 text-blue-600 font-bold hover:underline">Return to Home</a>
-      </div>
-    );
-  }
-
-  // Optional role check - disabled for testing unless specified
-  /*
-  if (user?.publicMetadata?.role === 'citizen') {
-     return (
-       <div className="flex h-[80vh] flex-col items-center justify-center p-4 text-center">
-         <AlertCircle className="h-16 w-16 text-amber-500" />
-         <h1 className="mt-4 text-2xl font-bold">Access Restricted</h1>
-         <p className="mt-2 text-slate-600">Only Railway Officials and Admins can access the dashboard.</p>
-         <a href="/" className="mt-6 text-blue-600 font-bold hover:underline">Return to Home</a>
-       </div>
-     );
-  }
-  */
 
   return (
     <div className="flex h-[calc(100vh-64px)] flex-col bg-slate-50">

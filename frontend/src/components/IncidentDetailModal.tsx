@@ -60,11 +60,20 @@ export default function IncidentDetailModal({
         {/* Media Preview Section */}
         <div className="w-full md:w-1/2 bg-slate-900 flex items-center justify-center relative min-h-[300px]">
           {incident.evidence_frames && incident.evidence_frames.length > 0 ? (
-            <img 
-              src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/frames/${incident.media_id}/${incident.evidence_frames[0]}`}
-              alt="Evidence"
-              className="w-full h-full object-contain"
-            />
+            incident.evidence_frames[0].endsWith(".mp4") ? (
+              <video 
+                src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/frames/${incident.media_id}/${incident.evidence_frames[0]}`}
+                controls
+                autoPlay
+                className="w-full h-full object-contain"
+              />
+            ) : (
+              <img 
+                src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/frames/${incident.media_id}/${incident.evidence_frames[0]}`}
+                alt="Evidence"
+                className="w-full h-full object-contain"
+              />
+            )
           ) : (
             <div className="text-slate-500 flex flex-col items-center italic">
               <ShieldAlert className="h-12 w-12 mb-2" />

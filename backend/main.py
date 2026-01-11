@@ -57,30 +57,61 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
     print(f"Processing media {media_id}...")
 
     try:
-        # Step 1: Extract frames
+        results = {}
+        # Step 1: Process Media (Image vs Video)
         if media_type == "video":
+            from backend.ml_worker import annotate_video
             import subprocess
-            cmd = [
-                "ffmpeg",
-                "-i", str(file_path),
-                "-vf", "fps=1",
-                "-q:v", "2",
-                str(frame_output_dir / "frame_%03d.jpg"),
-                "-y"
-            ]
-            subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            print(f"Frames extracted to {frame_output_dir}")
-        
+            
+            temp_video_path = frame_output_dir / "temp_annotated.mp4"
+            final_video_path = frame_output_dir / "annotated.mp4"
+            
+            print(f"Annotating video: {file_path} -> {temp_video_path}")
+            
+            # Step 1: Run CV2 / YOLO annotation (Produces raw MP4)
+            results = annotate_video(str(file_path), str(temp_video_path), target_fps=16)
+            
+            # Step 2: Use FFmpeg to re-encode for Web Compatibility (H.264 + Faststart)
+            if temp_video_path.exists():
+                print("Re-encoding video for web compatibility...")
+                ffmpeg_cmd = [
+                    "ffmpeg",
+                    "-i", str(temp_video_path),
+                    "-c:v", "libx264",
+                    "-preset", "fast",
+                    "-crf", "23",
+                    "-pix_fmt", "yuv420p", # Critical for browser support
+                    "-movflags", "+faststart",
+                    str(final_video_path),
+                    "-y"
+                ]
+                try:
+                    subprocess.run(ffmpeg_cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    print(f"Video re-encoded successfully: {final_video_path}")
+                    # Remove temp file
+                    temp_video_path.unlink()
+                    results["video_file"] = "annotated.mp4"
+                except Exception as ff_err:
+                    print(f"FFmpeg encoding failed: {ff_err}. Falling back to raw video.")
+                    # Fallback: just rename temp to final
+                    temp_video_path.replace(final_video_path)
+                    results["video_file"] = "annotated.mp4"
+            
+            print(f"Video processing complete. Score: {results['tampering_score']}")
+
         elif media_type == "image":
+            # Image logic (existing)
             target_path = frame_output_dir / "frame_001.jpg"
             shutil.copy(file_path, target_path)
-            print("Image copied as single frame.")
+            
+            print(f"Running cascade inference on {media_id}...")
+            results = process_frames(str(frame_output_dir))
+            
+            # Add single frame to detection list
+            if results["defective_frames"] > 0:
+                 results["video_file"] = None 
 
-        # Step 2: Run cascade inference
-        print(f"Running cascade inference on {media_id}...")
-        results = process_frames(str(frame_output_dir))
-        
-        tampering_score = results["tampering_score"]
+        tampering_score = results.get("tampering_score", 0.0)
         severity = get_severity_level(tampering_score)
         
         print(f"Tampering Score: {tampering_score} | Severity: {severity}")
@@ -94,12 +125,26 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
         # Step 4: Create incident if tampering detected
         if tampering_score >= 0.4:  # MEDIUM or HIGH
             # Find most common defect type
-            defect_types = [d["defect_type"] for d in results["detections"] if d["defect_type"]]
+            defect_types = [d["defect"] for d in results.get("detections", []) if "defect" in d and d["defect"]]
+             # Fallback for image worker dict keys
+            if not defect_types:
+                defect_types = [d["defect_type"] for d in results.get("detections", []) if "defect_type" in d and d["defect_type"]]
+
             primary_defect = max(set(defect_types), key=defect_types.count) if defect_types else "unknown"
             
             # Fetch reporter info from media
             media_item = db.query(Media).filter(Media.id == media_id).first()
             
+            # Prepare evidence list
+            evidence = []
+            if results.get("video_file"):
+                evidence = [results["video_file"]] # Video file
+            else:
+                 # Image frames
+                evidence = [d["frame"] for d in results.get("detections", []) if "frame" in d]
+                if not evidence: # Fallback if no frames listed but score is high
+                     evidence = ["frame_001.jpg"]
+
             incident = Incident(
                 id=f"INC-{media_id[:8]}",
                 media_id=media_id,
@@ -112,7 +157,7 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
                 fault_type=primary_defect,
                 severity=severity,
                 status="unverified",
-                evidence_frames=[d["frame"] for d in results["detections"] if d["status"] == "defective"]
+                evidence_frames=evidence
             )
             db.add(incident)
             db.commit()
