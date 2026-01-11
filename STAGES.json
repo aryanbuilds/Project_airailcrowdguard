@@ -24,49 +24,24 @@
         {
             "id": "3_ml_pipeline",
             "title": "Two-Stage YOLOv8 Inference Pipeline",
-            "status": "in_progress",
-            "description": "Cascade approach: Binary (fast filter) -> Detailed (classification)",
+            "status": "completed",
             "tasks": [
-                "✅ Update scripts/train_model.py: Support 'binary', 'detailed', and 'both' modes",
-                "✅ Update scripts/visualize_dataset.py: Cascade inference with severity extraction",
-                "✅ Fix v1i data.yaml: 9 clean defect classes",
-                "⏳ Create backend/ml_worker.py: Load both models, run cascade inference",
-                "⏳ Implement Aggregator: Compute Tampering Score from cascade results"
-            ],
-            "models": {
-                "binary": {
-                    "dataset": "data/Railway Track Fault detection.v4i.yolov8",
-                    "classes": [
-                        "defective",
-                        "non-defective"
-                    ],
-                    "purpose": "Fast filter - discard clean tracks"
-                },
-                "detailed": {
-                    "dataset": "data/Railway Track Defect Detection.v1i.yolov8",
-                    "classes": [
-                        "broken_rail_medium",
-                        "corrosion_low",
-                        "head_checks_high",
-                        "head_checks_low",
-                        "head_checks_medium",
-                        "railway_join_bar_defects_low",
-                        "squats_high",
-                        "squats_low",
-                        "squats_medium"
-                    ],
-                    "purpose": "Classify defect type + severity"
-                }
-            }
+                "Train Binary Model (v4i dataset): defective/non-defective",
+                "Train Detailed Model (v1i dataset): 9 defect classes",
+                "Copy weights to models/binary_model.pt and models/detailed_model.pt",
+                "Test cascade inference: Working correctly!",
+                "Create backend/ml_worker.py: Integrate cascade into FastAPI"
+            ]
         },
         {
             "id": "4_frontend_upload",
             "title": "Next.js Frontend: Uploads",
-            "status": "pending",
+            "status": "in_progress",
             "tasks": [
                 "Initialize Next.js app in frontend/",
                 "Setup Clerk authentication (ClerkProvider)",
-                "Create /upload page: File input (camera capture), geolocation, progress bar"
+                "Create /upload page: File input (camera capture), geolocation, progress bar",
+                "Connect to FastAPI backend"
             ]
         },
         {
@@ -75,8 +50,9 @@
             "status": "pending",
             "tasks": [
                 "Create /dashboard page: Poll /api/v1/incidents",
-                "Implement MapCN (or Leaflet) integration for incident markers",
-                "Add Incident Preview popup: Show key frame/video and Tampering Score"
+                "Implement Leaflet/MapLibre integration for incident markers",
+                "Add Incident Preview popup: Show key frame and Tampering Score",
+                "PDF download functionality"
             ]
         },
         {
@@ -90,14 +66,16 @@
             ]
         }
     ],
-    "training_commands": {
-        "binary_model": "python scripts/train_model.py --dataset binary --epochs 50",
-        "detailed_model": "python scripts/train_model.py --dataset detailed --epochs 50",
-        "both_models": "python scripts/train_model.py --dataset both"
-    },
-    "visualization_commands": {
-        "cascade_test": "python scripts/visualize_dataset.py --mode cascade --samples 10",
-        "binary_test": "python scripts/visualize_dataset.py --mode binary --samples 5",
-        "detailed_test": "python scripts/visualize_dataset.py --mode detailed --samples 5"
-    }
+    "current_focus": "Stage 4: Build the Next.js frontend with mobile upload capability",
+    "remaining_work": [
+        "1. Create backend/ml_worker.py - integrate cascade inference into upload flow",
+        "2. Initialize Next.js app with Clerk auth",
+        "3. Build /upload page (mobile camera capture)",
+        "4. Build /dashboard page (incident map)",
+        "5. Setup ngrok for demo"
+    ],
+    "cleanup_needed": [
+        "Delete server/ folder (legacy MQTT code)",
+        "Delete config/ folder if not needed"
+    ]
 }
