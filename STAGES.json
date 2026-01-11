@@ -1,45 +1,67 @@
 {
-    "project_goal": "A web-first (Next.js + FastAPI) railway tampering system accepting real photo/video evidence via Clerk-authenticated mobile uploads, processed by YOLOv8, and displayed on a laptop dashboard.",
+    "project_goal": "A web-first (Next.js + FastAPI) railway tampering system accepting real photo/video evidence via Clerk-authenticated mobile uploads, processed by a TWO-STAGE YOLOv8 pipeline, and displayed on a laptop dashboard.",
     "stages": [
         {
             "id": "1_scaffolding",
             "title": "Repo Scaffolding & Cleanup",
-            "description": "Clean up legacy files and initialize the new frontend/backend structure.",
             "status": "completed",
             "tasks": [
-                "Delete legacy files: run_complete_system.py, test_system.py, test_detections.py, setup.py, client/, server/mqtt_server.py, docker-compose.yml, scripts/install_mqtt.sh, scripts/run_demo.py, server/anomaly_detector.py, tests/test_detector.py, QUICKSTART.md",
-                "Create new folder structure: backend/ (FastAPI), frontend/ (Next.js), uploads/, frames/, reports/",
-                "Move yolov8n.pt to models/",
-                "Update requirements.txt with: fastapi, uvicorn, python-multipart, sqlalchemy, aiofiles",
-                "Update README.md for new Web-First architecture"
+                "Delete legacy MQTT files",
+                "Create new folder structure: backend/, frontend/, uploads/, frames/, reports/",
+                "Update requirements.txt for FastAPI stack"
             ]
         },
         {
             "id": "2_backend_core",
             "title": "FastAPI Backend & Uploads",
-            "description": "Implement media upload handling and frame extraction.",
             "status": "completed",
             "tasks": [
-                "Create backend/database.py: Define SQLite schema for Media and Incident",
-                "Create backend/main.py: Setup FastAPI app, CORS, and POST /api/v1/media/upload",
-                "Implement frame extraction logic: 1 fps extraction using ffmpeg"
+                "Create backend/database.py: SQLite schema for Media and Incident",
+                "Create backend/main.py: FastAPI app with POST /api/v1/media/upload",
+                "Implement frame extraction using ffmpeg"
             ]
         },
         {
             "id": "3_ml_pipeline",
-            "title": "YOLOv8 Inference Pipeline",
-            "description": "Integrate the ML model to process uploaded media.",
+            "title": "Two-Stage YOLOv8 Inference Pipeline",
             "status": "in_progress",
+            "description": "Cascade approach: Binary (fast filter) -> Detailed (classification)",
             "tasks": [
-                "Create backend/ml_worker.py: Load 'models/yolov8n.pt' (or trained weights)",
-                "Implement processing loop: Run YOLO on extracted frames",
-                "Implement Aggregator: Compute 'Tampering Score' and create Incident records"
-            ]
+                "✅ Update scripts/train_model.py: Support 'binary', 'detailed', and 'both' modes",
+                "✅ Update scripts/visualize_dataset.py: Cascade inference with severity extraction",
+                "✅ Fix v1i data.yaml: 9 clean defect classes",
+                "⏳ Create backend/ml_worker.py: Load both models, run cascade inference",
+                "⏳ Implement Aggregator: Compute Tampering Score from cascade results"
+            ],
+            "models": {
+                "binary": {
+                    "dataset": "data/Railway Track Fault detection.v4i.yolov8",
+                    "classes": [
+                        "defective",
+                        "non-defective"
+                    ],
+                    "purpose": "Fast filter - discard clean tracks"
+                },
+                "detailed": {
+                    "dataset": "data/Railway Track Defect Detection.v1i.yolov8",
+                    "classes": [
+                        "broken_rail_medium",
+                        "corrosion_low",
+                        "head_checks_high",
+                        "head_checks_low",
+                        "head_checks_medium",
+                        "railway_join_bar_defects_low",
+                        "squats_high",
+                        "squats_low",
+                        "squats_medium"
+                    ],
+                    "purpose": "Classify defect type + severity"
+                }
+            }
         },
         {
             "id": "4_frontend_upload",
             "title": "Next.js Frontend: Uploads",
-            "description": "Build the mobile-friendly upload UI.",
             "status": "pending",
             "tasks": [
                 "Initialize Next.js app in frontend/",
@@ -50,7 +72,6 @@
         {
             "id": "5_dashboard",
             "title": "Operator Dashboard",
-            "description": "Build the live incident view for the laptop.",
             "status": "pending",
             "tasks": [
                 "Create /dashboard page: Poll /api/v1/incidents",
@@ -61,7 +82,6 @@
         {
             "id": "6_demo_prep",
             "title": "Demo & Ngrok Setup",
-            "description": "Final polish for the live judge demo.",
             "status": "pending",
             "tasks": [
                 "Configure ngrok for public access",
@@ -69,5 +89,15 @@
                 "Create local run script for one-command startup"
             ]
         }
-    ]
+    ],
+    "training_commands": {
+        "binary_model": "python scripts/train_model.py --dataset binary --epochs 50",
+        "detailed_model": "python scripts/train_model.py --dataset detailed --epochs 50",
+        "both_models": "python scripts/train_model.py --dataset both"
+    },
+    "visualization_commands": {
+        "cascade_test": "python scripts/visualize_dataset.py --mode cascade --samples 10",
+        "binary_test": "python scripts/visualize_dataset.py --mode binary --samples 5",
+        "detailed_test": "python scripts/visualize_dataset.py --mode detailed --samples 5"
+    }
 }
