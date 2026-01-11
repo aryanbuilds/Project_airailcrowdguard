@@ -1,55 +1,81 @@
 # Railway Track Anomaly Detection System
 
-A real-time computer vision system for detecting faults (defective tracks) in railway networks using drone-captured imagery, YOLOv8, and MQTT communication.
+A web-first computer vision system for detecting railway track faults using mobile photo/video uploads, YOLOv8, and a real-time operator dashboard.
 
 ## 🚀 Project Overview
 
-This project implements an intelligent monitoring system that analyzes railway tracks for safety hazards. It uses a trained **YOLOv8** model to identify tracks as `defective` or `non-defective`. The system architecture supports real-time data streaming from drones to a central analysis server via the MQTT protocol.
+This system enables field workers or citizens to upload photos or short video clips (5-10s) of railway tracks via a mobile-friendly web interface. The backend analyzes the media using a **YOLOv8** model trained on railway fault data, computes a **Tampering Score**, and displays incidents on a live operator dashboard with map visualization.
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┐    MQTT (Mosquitto)    ┌─────────────────┐    ┌─────────────────┐
-│   Drone Client  │ ─────────────────────► │   MQTT Server   │ ──► │  Analysis Server│
-│                 │      (Docker)          │                 │    │                 │
-│ • Video Stream  │                        │ • Message Broker│    │ • YOLOv8 Detect │
-│ • GPS Telemetry │                        │ • Data Routing  │    │ • PDF Reporting │
-└─────────────────┘                        └─────────────────┘    └─────────────────┘
+┌─────────────────┐        HTTPS (ngrok)       ┌─────────────────┐
+│  Mobile Browser │ ─────────────────────────► │  Next.js        │
+│                 │                            │  Frontend       │
+│ • Camera Upload │                            │ • Clerk Auth    │
+│ • Geolocation   │                            │ • /upload page  │
+└─────────────────┘                            └────────┬────────┘
+                                                        │ POST /api/v1/media/upload
+                                                        ▼
+┌─────────────────┐                            ┌─────────────────┐
+│  Laptop Browser │ ◄───────────────────────── │  FastAPI        │
+│  (Dashboard)    │      Poll /api/incidents   │  Backend        │
+│                 │                            │                 │
+│ • MapCN / Leaflet│                           │ • Frame Extract │
+│ • Incident List │                            │ • YOLOv8 Infer  │
+│ • PDF Download  │                            │ • SQLite DB     │
+└─────────────────┘                            └─────────────────┘
 ```
 
 ## 🛠️ Tech Stack
 
-- **Python 3.10+** (Conda Environment)
+- **Python 3.10+** (Conda Environment: `railway-detection`)
+- **FastAPI** - Backend REST API
+- **Next.js** - Frontend (Mobile Upload + Dashboard)
+- **Clerk** - Authentication
 - **Ultralytics YOLOv8** - Object detection
-- **Docker & Docker Compose** - For running the Mosquitto MQTT broker
-- **OpenCV** - Video processing
-- **Paho-MQTT** - Real-time messaging
-- **ReportLab** - Automated PDF reporting
+- **FFmpeg** - Video frame extraction
+- **SQLite + SQLAlchemy** - Database
+- **ngrok** - Expose local server for mobile access
 
 ## 📁 Project Structure
 
 ```
 railway-track-anomaly-detection/
-├── client/
-│   └── drone_client.py          # Streams video/images to server
-├── server/
-│   ├── anomaly_detector.py     # Real-time YOLOv8 detector
-│   └── pdf_generator.py        # Generates fault reports
+├── backend/
+│   ├── main.py              # FastAPI app & upload endpoint
+│   ├── database.py          # SQLAlchemy models (Media, Incident)
+│   └── ml_worker.py         # YOLOv8 inference (Stage 3)
+├── frontend/                # Next.js app (Stage 4)
+│   ├── pages/
+│   │   ├── upload.tsx       # Mobile upload UI
+│   │   └── dashboard.tsx    # Operator dashboard
+│   └── ...
 ├── scripts/
-│   ├── train_model.py          # Train YOLOv8 on custom datasets
-│   ├── visualize_dataset.py    # Test model on dataset images
-│   └── download_weights.py     # Download base YOLO weights
+│   ├── train_model.py       # Train YOLOv8 on custom datasets
+│   └── visualize_dataset.py # Test model on dataset images
 ├── data/
 │   ├── Railway Track Fault...  # Primary Dataset (2600+ images)
-│   ├── Track fault detection...# Secondary Dataset
-│   └── reports/                # Generated PDF summaries
+│   └── Track fault detection...# Secondary Dataset
+├── models/                  # YOLO weights (yolov8n.pt, best.pt)
+├── uploads/                 # Raw uploaded media
+├── frames/                  # Extracted frames per media
+├── reports/                 # Generated PDF incident reports
 ├── config/
-│   └── settings.py             # System configuration
-├── docker-compose.yml          # Mosquitto MQTT setup
-└── requirements.txt            # Dependencies
+│   └── settings.py          # Configuration
+├── utils/
+│   └── image_utils.py       # Image processing helpers
+├── STAGES.json              # Development roadmap
+└── requirements.txt         # Python dependencies
 ```
 
 ## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.10+, Conda
+- Node.js 18+, npm
+- FFmpeg (`ffprobe` in PATH)
+- ngrok account (for mobile access)
 
 ### 1. Environment Setup (Conda)
 ```bash
@@ -57,52 +83,68 @@ railway-track-anomaly-detection/
 conda create -n railway-detection python=3.10 -y
 conda activate railway-detection
 
-# Install dependencies
+# Install Python dependencies
 pip install -r requirements.txt
 ```
 
-### 2. Start MQTT Broker (Docker)
-Ensure Docker Desktop is running, then start the broker:
+### 2. Start Backend (FastAPI)
 ```bash
-docker-compose up -d
+uvicorn backend.main:app --reload --port 8000
 ```
 
-### 3. Training the Model
-To detect faults reliably, you must train the model on your dataset:
+### 3. Start Frontend (Next.js)
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 4. Expose for Mobile (ngrok)
+```bash
+ngrok http 3000
+```
+Copy the HTTPS URL and open it on your phone.
+
+## 🏋️ Training the Model
+
+To train YOLOv8 on your railway fault dataset:
 ```bash
 python scripts/train_model.py --dataset "data/Railway Track Fault detection.v4i.yolov8" --epochs 50
 ```
-*Note: Trained weights will be saved in `runs/detect/train/weights/best.pt`.*
-
-### 4. Running the System
-
-1. **Start Detection Server**:
-   ```bash
-   python server/anomaly_detector.py
-   ```
-
-2. **Run Drone Simulation (Real Data)**:
-   Point the client to a video file from your dataset:
-   ```bash
-   python client/drone_client.py --video-source "data/videos/your_test_video.mp4"
-   ```
-
-3. **Inference Test**:
-   Run a quick check on random images from your dataset:
-   ```bash
-   python scripts/visualize_dataset.py
-   ```
+Trained weights will be saved in `runs/detect/train/weights/best.pt`.
 
 ## 📊 Features
 
-- **Custom-Trained YOLOv8**: Optimized for `defective` vs `non-defective` track classification.
-- **Low Latency Protocol**: Uses MQTT for efficient video frame transmission.
-- **Automated Reporting**: Generates a PDF report containing annotated images of every detected fault including GPS coordinates.
-- **Containerized Infrastructure**: One-click MQTT setup using Docker.
+- **Mobile-First Uploads**: Users can take photos or record short videos directly from their phone browser.
+- **YOLOv8 Inference**: Detects `defective` vs `non-defective` tracks with confidence scores.
+- **Tampering Score**: Aggregated score based on detection rate, confidence, and persistence across frames.
+- **Live Dashboard**: Map-based view of all incidents with severity indicators.
+- **PDF Reports**: Downloadable incident reports with annotated images and GPS coordinates.
 
-## 📈 Performance
-- **Detection Accuracy**: Depends on training (90%+ achievable with provided datasets).
-- **Inference Speed**: ~15-30 FPS depending on GPU availability.
+## 📈 API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/media/upload` | Upload image/video with optional lat/lng |
+| GET | `/api/v1/incidents` | List all incidents |
+| GET | `/api/v1/media/{id}` | Get media details and frames |
+
+## 🧪 Testing
+
+Run inference on sample dataset images:
+```bash
+python scripts/visualize_dataset.py
+```
+
+## � Development Roadmap
+
+See `STAGES.json` for the full implementation plan:
+1. ✅ Repo Scaffolding & Cleanup
+2. 🔄 FastAPI Backend & Uploads
+3. ⏳ YOLOv8 Inference Pipeline
+4. ⏳ Next.js Frontend: Uploads
+5. ⏳ Operator Dashboard
+6. ⏳ Demo & Ngrok Setup
 
 ---
 *Developed for Railway Track Safety Monitoring.*
