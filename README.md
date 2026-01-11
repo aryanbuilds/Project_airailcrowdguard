@@ -9,128 +9,63 @@ Field workers or citizens can upload photos or short video clips (5-10s) of rail
 1. **Binary Model (Fast Filter)**: Quickly determines if a track is `defective` or `non-defective`
 2. **Detailed Model (Classification)**: If defective, classifies the specific defect type with severity level
 
+## Key Features
+
+*   **Real-Time Video Analysis**: Extracts frames at 16 FPS, runs YOLO inference, and re-encodes annotated results for web playback.
+*   **Mobile-First Uploads**: Geolocation-tagged captures via phone camera.
+*   **Operator Dashboard**: Leaflet-based map view with live incident tracking and moving train simulation.
+*   **System Console**: Real-time server log monitoring interface (`/console`).
+*   **Privacy-First**: No external authentication required (Bypass Mode active for demo).
+
 ## Architecture
 
 ```
-                    MOBILE UPLOAD FLOW                                  IoT / SCADA FLOW
+                    MOBILE UPLOAD FLOW                                  Backend Pipeline
 ┌─────────────────┐        HTTPS         ┌─────────────────┐       ┌──────────────────────┐
-│  Mobile Browser │ ──────────────────►  │  Next.js        │       │  IoT Edge Device     │
-│                 │     (via ngrok)      │  Frontend       │       │  (Jetson/Raspberry)  │
-│ • Camera Upload │                      │ • Clerk Auth    │       │                      │
-│ • Geolocation   │                      │ • /upload page  │       │ • CCTV Stream        │
-└─────────────────┘                      └────────┬────────┘       │ • Vibration Sensors  │
-                                                  │                └──────────┬───────────┘
-                                    POST /api/v1/media/upload                 │
-                                                  │                           │ (MQTT / 5G)
-                                                  │                           ▼
-                                                  │                ┌──────────────────────┐
-                                                  │                │  MQTT Broker         │
-                                                  │                │  (Mosquitto/HiveMQ)  │
-                                                  ▼                └──────────┬───────────┘
-                                         ┌─────────────────┐                  │
-                                         │  FastAPI        │ ◄────────────────┘
-                                         │  Backend        │          Sub: /railway/alerts
-                                         │                 │
-                                         │ • Frame Extract │
-                                         │ • ffmpeg 1fps   │
-                                         └────────┬────────┘
-                                                  │
-                                      TWO-STAGE CASCADE INFERENCE
-                                                  │
-                    ┌─────────────────────────────┴─────────────────────────────┐
-                    │                                                           │
-                    ▼                                                           ▼
-           ┌─────────────────┐                                         ┌─────────────────┐
-           │  BINARY MODEL   │ ──── if defective ────────────────────► │ DETAILED MODEL  │
-           │  (Fast Filter)  │                                         │ (9-class)       │
-           │                 │                                         │                 │
-           │ • defective     │                                         │ • broken_rail   │
-           │ • non-defective │                                         │ • corrosion     │
-           └────────┬────────┘                                         │ • head_checks   │
-                    │                                                  │ • squats        │
-             if non-defective                                          │ • join_bar      │
-                    │                                                  │ + severity      │
-                    ▼                                                  └────────┬────────┘
-               ┌─────────┐                                                      │
-               │  STOP   │                                                      ▼
-               │ (save   │                                              ┌─────────────────┐
-               │  CPU)   │                                              │ Create Incident │
-               └─────────┘                                              │ • Tampering Score│
-                                                                        │ • PDF Report    │
-                                                                        └─────────────────┘
-                                                  │
-                                                  ▼
-┌─────────────────┐                      ┌─────────────────┐
-│  Laptop Browser │ ◄─── Poll ────────── │  SQLite DB      │
-│  (Dashboard)    │   /api/incidents     │  + Reports      │
-│                 │                      └─────────────────┘
-│ • Map View      │
-│ • Incident List │
-│ • PDF Download  │
-└─────────────────┘
+│  Mobile Browser │ ──────────────────►  │  Next.js        │       │  FastAPI (Python)    │
+│                 │     (via ngrok)      │  Frontend       │       │                      │
+│ • Camera Upload │                      │ • /upload       │       │ • ffmpeg re-encode   │
+│ • Geolocation   │                      │ • /dashboard    │       │ • opencv annotation  │
+└─────────────────┘                      │ • /console      │       │ • YOLOv8 Inference   │
+                                         └────────┬────────┘       └──────────┬───────────┘
+                                                  │                           │
+                                     POST /api/v1/media/upload                │
+                                                  │                           │
+                                                  ▼                           ▼
+                                         ┌─────────────────┐        ┌───────────────────┐
+                                         │  SQLite DB      │        │  Two-Stage Model  │
+                                         │  (Incidents)    │◄───────│  (Binary+Detailed)│
+                                         └─────────────────┘        └───────────────────┘
 ```
-
-### MQTT & IoT Architecture
-
-The system supports **IoT-to-Cloud** ingestion via MQTT for automated monitoring:
-
-1.  **Edge Detection**: IoT devices (Jetson Nano) run the `Binary Model` locally on CCTV streams.
-2.  **Publish**: If a defect is found, a JSON alert with the image is published to `railway/alerts/v1`.
-3.  **Process**: The Backend subscribes to this topic and runs the `Detailed Model` for verification.
 
 ## Tech Stack
 
 - **Python 3.10+** (Conda Environment: `railway-detection`)
 - **Ultralytics YOLOv8** - Two-stage object detection
 - **FastAPI** - Backend REST API
-- **Next.js** - Frontend (Mobile Upload + Dashboard)
-- **Clerk** - Authentication
-- **FFmpeg** - Video frame extraction
-- **SQLite + SQLAlchemy** - Database
-- **ngrok** - Expose local server for mobile access
+- **Next.js 16 (Turbopack)** - Frontend (Mobile Upload + Dashboard)
+- **OpenCV & FFmpeg** - Video processing pipeline
+- **Leaflet** - Mapping engine
+- **SQLite** - Database
 
 ## Project Structure
 
 ```
 railway-track-anomaly-detection/
 ├── backend/
-│   ├── main.py              # FastAPI app & upload endpoint
-│   ├── database.py          # SQLAlchemy models (Media, Incident)
-│   └── ml_worker.py         # Two-stage cascade inference
+│   ├── main.py              # FastAPI app & logging logic
+│   ├── database.py          # SQLAlchemy models
+│   └── ml_worker.py         # Video annotation & inference
 ├── frontend/                # Next.js app
-├── notebooks/
-│   └── training_pipeline.ipynb  # End-to-end training notebook
-├── scripts/
-│   ├── train_model.py       # Train binary/detailed/both models
-│   ├── visualize_dataset.py # Test cascade inference
-│   └── download_weights.py  # Download base YOLO weights
-├── data/
-│   ├── Railway Track Fault detection.v4i.yolov8/   # Binary dataset
-│   └── Railway Track Defect Detection.v1i.yolov8/  # Detailed dataset
+│   ├── src/app/dashboard    # Map & Incident List
+│   ├── src/app/console      # Live Log Viewer
+│   └── src/app/upload       # Mobile Upload Form
 ├── models/                  # Trained weights
-│   ├── binary_model.pt      # Stage 1: defective/non-defective
-│   └── detailed_model.pt    # Stage 2: 9 defect classes
 ├── uploads/                 # Raw uploaded media
-├── frames/                  # Extracted frames per media
-├── reports/                 # Generated PDF incident reports
-├── runs/                    # Training artifacts
-├── STAGES.json              # Development roadmap
-└── requirements.txt         # Python dependencies
+├── frames/                  # Extracted/Annotated frames & videos
+├── logs/                    # Application logs
+└── STAGES.json              # Development roadmap
 ```
-
-## Datasets
-
-| Dataset | Classes | Images | Purpose |
-|---------|---------|--------|---------|
-| **v4i (Binary)** | `defective`, `non-defective` | ~1200 | Fast filter |
-| **v1i (Detailed)** | 9 defect types with severity | ~700 | Classification |
-
-### Detailed Model Classes:
-- `broken_rail_medium`
-- `corrosion_low`
-- `head_checks_high`, `head_checks_low`, `head_checks_medium`
-- `railway_join_bar_defects_low`
-- `squats_high`, `squats_low`, `squats_medium`
 
 ## Quick Start
 
@@ -140,75 +75,26 @@ conda create -n railway-detection python=3.10 -y
 conda activate railway-detection
 pip install -r requirements.txt
 ```
+*Note: Ensure FFmpeg is installed and added to your system PATH.*
 
-### 2. Train Models
-
-**Train both models (recommended):**
+### 2. Start Backend (FastAPI)
 ```bash
-python scripts/train_model.py --dataset both
-```
-
-**Or train individually:**
-```bash
-# Binary model (fast filter)
-python scripts/train_model.py --dataset binary --epochs 50
-
-# Detailed model (9-class classification)
-python scripts/train_model.py --dataset detailed --epochs 50
-```
-
-**After training, copy weights:**
-```bash
-copy runs\detect\train_binary\weights\best.pt models\binary_model.pt
-copy runs\detect\train_detailed\weights\best.pt models\detailed_model.pt
-```
-
-### 3. Test Cascade Inference
-```bash
-python scripts/visualize_dataset.py --mode cascade --samples 10
-```
-
-### 4. Start Backend (FastAPI)
-```bash
-# Exclude frontend directory from watch to prevent crashes
+# Runs on localhost:8000
 uvicorn backend.main:app --reload --port 8000 --reload-exclude "frontend/*"
 ```
 
-### 5. Start Frontend (Next.js)
+### 3. Start Frontend (Next.js)
 ```bash
 cd frontend
 npm install
 npm run dev
+# Runs on localhost:3000
 ```
 
-### 6. Expose for Mobile (ngrok)
-```bash
-ngrok http 3000
-```
-
-## Two-Stage Cascade Explained
-
-```python
-# Stage 1: Quick binary check
-binary_result = binary_model(image)
-
-if binary_result == "non-defective":
-    return "Track is OK"  # STOP - save CPU time
-
-# Stage 2: Only runs if defective
-detailed_result = detailed_model(image)
-
-return {
-    "defect_type": detailed_result.class_name,
-    "severity": extract_severity(detailed_result.class_name),  # HIGH/MEDIUM/LOW
-    "confidence": detailed_result.conf
-}
-```
-
-**Benefits:**
-- Skips detailed classification for ~60-80% of clean tracks
-- Average CPU time: ~4 seconds per upload (acceptable for demo)
-- Explainable results for operators
+### 4. Usage
+1.  **Open Dashboard**: Go to `http://localhost:3000/dashboard` to view the map.
+2.  **Open Console**: Go to `http://localhost:3000/console` to watch logs.
+3.  **Upload Media**: Go to `http://localhost:3000/upload` to submit a test video/image.
 
 ## API Endpoints
 
@@ -216,33 +102,15 @@ return {
 |--------|----------|-------------|
 | POST | `/api/v1/media/upload` | Upload image/video with optional lat/lng |
 | GET | `/api/v1/incidents` | List all incidents |
-| GET | `/api/v1/media/{id}` | Get media details and frames |
-
-## Development Roadmap
-
-See `STAGES.json` for full plan:
-
-| Stage | Title | Status |
-|-------|-------|--------|
-| 1 | Repo Scaffolding & Cleanup | Completed |
-| 2 | FastAPI Backend & Uploads | Completed |
-| 3 | Two-Stage YOLOv8 Pipeline | Completed |
-| 4 | Next.js Frontend: Uploads | Completed |
-| 5 | Operator Dashboard | Completed |
-| 6 | Demo & Ngrok Setup | In Progress |
+| GET | `/api/v1/logs` | Fetch real-time server logs |
 
 ## Troubleshooting
 
-### NumPy Version Error
-```bash
-pip install "numpy<2" --force-reinstall
-```
+### Video Not Playing?
+Ensure `ffmpeg` is installed. The backend uses it to convert OpenCV output to H.264 format compatible with browsers.
 
-### PyTorch Weights Error
-```bash
-pip install ultralytics --upgrade
-del yolov8n.pt  # Delete old weights
-```
+### Authentication?
+Authentication has been disabled for demonstration purposes. The system currently runs in "Admin Bypass" mode.
 
 ---
 *Developed for Railway Track Safety Monitoring*

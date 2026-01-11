@@ -1,5 +1,5 @@
 {
-    "project_goal": "A web-first (Next.js + FastAPI) railway tampering system accepting real photo/video evidence via Clerk-authenticated mobile uploads, processed by a TWO-STAGE YOLOv8 pipeline, and displayed on a laptop dashboard.",
+    "project_goal": "A web-first (Next.js + FastAPI) railway tampering system accepting real photo/video evidence via mobile uploads, processed by a TWO-STAGE YOLOv8 pipeline, and displayed on a laptop dashboard with real-time logs.",
     "stages": [
         {
             "id": "1_scaffolding",
@@ -36,10 +36,9 @@
         {
             "id": "4_frontend_upload",
             "title": "Next.js Frontend: Uploads",
-            "status": "in_progress",
+            "status": "completed",
             "tasks": [
                 "Initialize Next.js app in frontend/",
-                "Setup Clerk authentication (ClerkProvider)",
                 "Create /upload page: File input (camera capture), geolocation, progress bar",
                 "Connect to FastAPI backend"
             ]
@@ -47,35 +46,49 @@
         {
             "id": "5_dashboard",
             "title": "Operator Dashboard",
-            "status": "pending",
+            "status": "completed",
             "tasks": [
                 "Create /dashboard page: Poll /api/v1/incidents",
-                "Implement Leaflet/MapLibre integration for incident markers",
-                "Add Incident Preview popup: Show key frame and Tampering Score",
-                "PDF download functionality"
+                "Implement Leaflet integration for incident markers",
+                "Add Incident Preview popup: Show key frame/video and Tampering Score",
+                "Remove Clerk Auth (Bypass Mode Implementation)"
             ]
         },
         {
-            "id": "6_demo_prep",
-            "title": "Demo & Ngrok Setup",
-            "status": "pending",
+            "id": "6_simulation_visuals",
+            "title": "Simulation & Enhancements",
+            "status": "completed",
             "tasks": [
-                "Configure ngrok for public access",
-                "Verify mobile flow: Phone Upload -> Backend Process -> Laptop Dashboard Update",
-                "Create local run script for one-command startup"
+                "Implement Moving Train simulation on Map",
+                "Add Tampering Simulation logic",
+                "Add Crash/Safety logic"
+            ]
+        },
+        {
+            "id": "7_video_pipeline",
+            "title": "Video Analysis Pipeline",
+            "status": "completed",
+            "tasks": [
+                "Implement annotated_video with OpenCV",
+                "Add FFmpeg re-encoding for web playback",
+                "Integrate Video Player in Dashboard Modal"
+            ]
+        },
+        {
+            "id": "8_monitoring",
+            "title": "System Monitoring & Console",
+            "status": "completed",
+            "tasks": [
+                "Create backend logging system (app.log)",
+                "Create /console page for real-time logs",
+                "Add Dashboard Navigation Links"
             ]
         }
     ],
-    "current_focus": "Stage 4: Build the Next.js frontend with mobile upload capability",
+    "current_focus": "System Maintenance & Demo",
     "remaining_work": [
-        "1. Create backend/ml_worker.py - integrate cascade inference into upload flow",
-        "2. Initialize Next.js app with Clerk auth",
-        "3. Build /upload page (mobile camera capture)",
-        "4. Build /dashboard page (incident map)",
-        "5. Setup ngrok for demo"
+        "1. Final Demo Polish",
+        "2. ngrok Setup for Mobile Testing"
     ],
-    "cleanup_needed": [
-        "Delete server/ folder (legacy MQTT code)",
-        "Delete config/ folder if not needed"
-    ]
+    "cleanup_needed": []
 }
