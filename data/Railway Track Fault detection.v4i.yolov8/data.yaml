@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 2
+names: ['defective', 'non-defective']
+
+roboflow:
+  workspace: railway-track-crack-detection-using-yolov5
+  project: railway-track-fault-detection-hrem8
+  version: 4
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/railway-track-crack-detection-using-yolov5/railway-track-fault-detection-hrem8/dataset/4
