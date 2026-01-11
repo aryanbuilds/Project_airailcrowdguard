@@ -157,8 +157,9 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
             media_item.status = "analyzed"
             db.commit()
         
-        # Step 4: Create incident if tampering detected
-        if tampering_score >= 0.4:  # MEDIUM or HIGH
+        # Step 4: Create incident if tampering detected (Threshold 0.1 for demo/debugging)
+        if tampering_score >= 0.0:  # Create incident for EVERYTHING (SAFE or UNSAFE)
+
             # Find most common defect type
             defect_types = [d["defect"] for d in results.get("detections", []) if "defect" in d and d["defect"]]
              # Fallback for image worker dict keys
