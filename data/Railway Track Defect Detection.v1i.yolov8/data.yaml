@@ -1,0 +1,22 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 9
+names:
+  - broken_rail_medium
+  - corrosion_low
+  - head_checks_high
+  - head_checks_low
+  - head_checks_medium
+  - railway_join_bar_defects_low
+  - squats_high
+  - squats_low
+  - squats_medium
+
+roboflow:
+  workspace: model-train-np
+  project: railway-track-defect-detection-xxtlx
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/model-train-np/railway-track-defect-detection-xxtlx/dataset/1
