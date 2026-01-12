@@ -79,6 +79,15 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Control-room accents */
+  --rail-accent: oklch(0.77 0.18 178);
+  --rail-accent-2: oklch(0.72 0.2 265);
+  --rail-warning: oklch(0.8 0.16 80);
+  --rail-danger: oklch(0.72 0.2 25);
+  --rail-surface: oklch(0.98 0 0);
+  --rail-surface-2: oklch(0.95 0 0);
+  --rail-grid: oklch(0.7 0 0 / 12%);
 }
 
 .dark {
@@ -113,6 +122,102 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Control-room accents (dark) */
+  --rail-surface: oklch(0.18 0 0);
+  --rail-surface-2: oklch(0.22 0 0);
+  --rail-grid: oklch(0.92 0 0 / 8%);
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+  }
+  .dark {
+    color-scheme: dark;
+  }
+}
+
+@layer components {
+  .control-bg {
+    background:
+      radial-gradient(900px 500px at 10% 0%, color-mix(in oklab, var(--rail-accent) 18%, transparent) 0%, transparent 60%),
+      radial-gradient(900px 500px at 90% 20%, color-mix(in oklab, var(--rail-accent-2) 18%, transparent) 0%, transparent 60%),
+      linear-gradient(to bottom, color-mix(in oklab, var(--rail-surface) 70%, black) 0%, color-mix(in oklab, var(--background) 92%, black) 100%);
+  }
+
+  .control-grid {
+    background-image:
+      linear-gradient(to right, var(--rail-grid) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--rail-grid) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-position: center;
+    mask-image: radial-gradient(70% 60% at 50% 30%, black 0%, transparent 75%);
+  }
+
+  .glass-panel {
+    background: color-mix(in oklab, var(--rail-surface) 72%, transparent);
+    border: 1px solid color-mix(in oklab, var(--border) 65%, transparent);
+    box-shadow:
+      0 20px 60px color-mix(in oklab, black 40%, transparent),
+      0 1px 0 color-mix(in oklab, white 10%, transparent) inset;
+    backdrop-filter: blur(14px);
+  }
+
+  .neon-edge {
+    position: relative;
+  }
+  .neon-edge::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(135deg, color-mix(in oklab, var(--rail-accent) 70%, transparent), color-mix(in oklab, var(--rail-accent-2) 65%, transparent));
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.9;
+  }
+
+  .scanline {
+    position: relative;
+    overflow: hidden;
+  }
+  .scanline::after {
+    content: "";
+    position: absolute;
+    inset: -20% 0 auto 0;
+    height: 140px;
+    background: linear-gradient(to bottom, transparent 0%, color-mix(in oklab, var(--rail-accent) 12%, transparent) 50%, transparent 100%);
+    animation: rail-scan 5.5s linear infinite;
+    pointer-events: none;
+    opacity: 0.9;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+    background: color-mix(in oklab, var(--rail-surface) 78%, transparent);
+    padding: 0.35rem 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-size: 0.68rem;
+  }
+}
+
+@keyframes rail-scan {
+  0% {
+    transform: translateY(-140px);
+  }
+  100% {
+    transform: translateY(calc(100vh + 140px));
+  }
 }
 
 @layer base {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, RefreshCw, AlertCircle, Map as MapIcon, List as ListIcon, ShieldCheck, Terminal, Upload, Bot } from "lucide-react";
+import { RefreshCw, AlertCircle, Map as MapIcon, List as ListIcon, ShieldCheck, Terminal, Upload, Activity, Radar, Siren, Bot } from "lucide-react";
 
 import IncidentCard from "@/components/IncidentCard";
 import SeverityBadge from "@/components/SeverityBadge";
@@ -42,9 +42,9 @@ export default function Dashboard() {
       const data = await response.json();
       setIncidents(data);
       setError(null);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Fetch error:", err);
-      setError(err.message || "An error occurred");
+      setError(err instanceof Error ? err.message : "An error occurred");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -85,101 +85,166 @@ export default function Dashboard() {
 
 
   return (
-    <div className="flex h-[calc(100vh-64px)] flex-col bg-slate-50">
-      {/* Dashboard Header */}
-      <div className="border-b bg-white px-6 py-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-col">
-            <h1 className="text-2xl font-bold text-slate-900">Operator Dashboard</h1>
-            <p className="text-sm text-slate-500">Monitoring {incidents.length} active anomalies</p>
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="chip">
+                <Activity className="h-3.5 w-3.5" />
+                Operations
+              </span>
+              <span className="chip">
+                <Radar className="h-3.5 w-3.5" />
+                Monitoring
+              </span>
+            </div>
+            <h1 className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Operator Control Center</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Live anomaly stream • {incidents.length} incidents • auto-refresh 10s
+            </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Link 
-              href="/copilot" 
-              className="flex items-center gap-2 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-2 text-sm font-bold text-white hover:from-purple-700 hover:to-blue-700 transition-all shadow-md"
-            >
-              <Bot className="h-4 w-4" />
-              AI Copilot
-            </Link>
-            <Link 
-              href="/console" 
-              target="_blank"
-              className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-900 px-3 py-1.5 text-sm font-bold text-white hover:bg-slate-800 transition-colors"
-            >
-              <Terminal className="h-4 w-4" />
-              Console
-            </Link>
-            <Link 
-              href="/upload" 
-              className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-sm font-bold text-blue-700 hover:bg-blue-100 transition-colors"
-            >
-              <Upload className="h-4 w-4" />
-              Upload
-            </Link>
-            <div className="h-6 w-px bg-slate-200 mx-1"></div>
-            <div className="flex rounded-lg bg-slate-100 p-1">
-              <button 
+
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="inline-flex items-center gap-1 rounded-2xl border bg-white/5 p-1">
+              <button
                 onClick={() => setView('list')}
-                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${view === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition-all ${
+                  view === 'list'
+                    ? 'bg-white/10 text-foreground border border-white/10'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
                 <ListIcon className="h-4 w-4" />
                 List
               </button>
-              <button 
+              <button
                 onClick={() => setView('map')}
-                className={`flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-all ${view === 'map' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-600 hover:text-slate-900'}`}
+                className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-extrabold transition-all ${
+                  view === 'map'
+                    ? 'bg-white/10 text-foreground border border-white/10'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
                 <MapIcon className="h-4 w-4" />
                 Map
               </button>
             </div>
-            <button 
+
+            <button
               onClick={fetchIncidents}
               disabled={refreshing}
-              className="flex items-center gap-2 rounded-lg border bg-white px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border bg-white/5 px-4 py-2 text-sm font-extrabold hover:bg-white/10 disabled:opacity-50"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               Sync
             </button>
+
+            <Link
+              href="/copilot"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-2 text-sm font-black text-white hover:brightness-110"
+            >
+              <Bot className="h-4 w-4" />
+              AI Copilot
+            </Link>
+            <Link
+              href="/console"
+              target="_blank"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border bg-white/5 px-4 py-2 text-sm font-extrabold hover:bg-white/10"
+            >
+              <Terminal className="h-4 w-4" />
+              Console
+            </Link>
+            <Link
+              href="/upload"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[color:var(--rail-accent)] to-[color:var(--rail-accent-2)] px-4 py-2 text-sm font-black text-slate-950 hover:brightness-110"
+            >
+              <Upload className="h-4 w-4" />
+              New Report
+            </Link>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto p-6">
+      {/* KPIs */}
+      <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div className="neon-edge rounded-3xl bg-white/5 p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-extrabold tracking-widest text-muted-foreground uppercase">Active Incidents</div>
+            <span className="chip">Live</span>
+          </div>
+          <div className="mt-2 text-3xl font-black">{incidents.length}</div>
+          <div className="mt-1 text-xs text-muted-foreground">Includes unverified + verified + dismissed</div>
+        </div>
+        <div className="neon-edge rounded-3xl bg-white/5 p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-extrabold tracking-widest text-muted-foreground uppercase">High Severity</div>
+            <Siren className="h-4 w-4 text-[color:var(--rail-danger)]" />
+          </div>
+          <div className="mt-2 text-3xl font-black">{incidents.filter(i => i.severity === 'HIGH').length}</div>
+          <div className="mt-1 text-xs text-muted-foreground">Immediate dispatch recommended</div>
+        </div>
+        <div className="neon-edge rounded-3xl bg-white/5 p-4">
+          <div className="flex items-center justify-between">
+            <div className="text-xs font-extrabold tracking-widest text-muted-foreground uppercase">System Status</div>
+            <span className="chip">Telemetry</span>
+          </div>
+          <div className="mt-2 text-3xl font-black">{error ? 'Degraded' : 'Nominal'}</div>
+          <div className="mt-1 text-xs text-muted-foreground">Backend: {process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}</div>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div className="flex-1">
         {error ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="rounded-full bg-red-50 p-6">
-              <AlertCircle className="h-12 w-12 text-red-500" />
+          <div className="neon-edge rounded-3xl bg-white/5 p-8 text-center">
+            <div className="mx-auto grid size-16 place-items-center rounded-3xl bg-[color:var(--rail-danger)]/10">
+              <AlertCircle className="h-8 w-8 text-[color:var(--rail-danger)]" />
             </div>
-            <h2 className="mt-4 text-xl font-bold">API Connection Error</h2>
-            <p className="mt-2 text-slate-600 max-w-md">Could not connect to the analysis engine. Ensure the FastAPI backend is running on {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}.</p>
-            <button onClick={fetchIncidents} className="mt-6 text-blue-600 font-bold hover:underline">Retry Connection</button>
+            <h2 className="mt-4 text-xl font-black">Control Link Lost</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Could not reach the analysis engine at {process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}.
+            </p>
+            <button
+              onClick={fetchIncidents}
+              className="mt-6 rounded-2xl bg-gradient-to-r from-[color:var(--rail-accent)] to-[color:var(--rail-accent-2)] px-6 py-2.5 text-sm font-black text-slate-950 hover:brightness-110"
+            >
+              Retry Sync
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="neon-edge rounded-3xl bg-white/5 p-8">
+            <div className="flex items-center gap-3">
+              <span className="relative flex size-2">
+                <span className="absolute inline-flex size-2 animate-ping rounded-full bg-[color:var(--rail-accent)] opacity-40" />
+                <span className="relative inline-flex size-2 rounded-full bg-[color:var(--rail-accent)]" />
+              </span>
+              <div className="text-sm font-bold">Acquiring incident feed…</div>
+            </div>
+            <div className="mt-3 text-xs text-muted-foreground">Waiting for backend response.</div>
           </div>
         ) : incidents.length === 0 ? (
-          <div className="flex h-full flex-col items-center justify-center text-center">
-            <div className="rounded-full bg-emerald-50 p-6">
-              <ShieldCheck className="h-12 w-12 text-emerald-500" />
+          <div className="neon-edge rounded-3xl bg-white/5 p-10 text-center">
+            <div className="mx-auto grid size-16 place-items-center rounded-3xl bg-[color:var(--rail-accent)]/10">
+              <ShieldCheck className="h-8 w-8 text-[color:var(--rail-accent)]" />
             </div>
-            <h2 className="mt-4 text-xl font-bold font-serif italic text-slate-900">All Tracks Clear</h2>
-            <p className="mt-2 text-slate-600">No railway track anomalies detected in recent reports.</p>
+            <h2 className="mt-4 text-2xl font-black">All Lines Clear</h2>
+            <p className="mt-2 text-sm text-muted-foreground">No anomalies detected in the current reporting window.</p>
           </div>
         ) : (
-          <div className={`h-full ${view === 'list' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 content-start' : ''}`}>
+          <div className={view === 'list' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4' : ''}>
             {view === 'list' ? (
-              incidents.map(incident => (
-                <IncidentCard 
-                  key={incident.id} 
-                  incident={incident} 
-                  onClick={(id) => setSelectedIncidentId(id)} 
+              incidents.map((incident) => (
+                <IncidentCard
+                  key={incident.id}
+                  incident={incident}
+                  onClick={(id) => setSelectedIncidentId(id)}
                 />
               ))
             ) : (
-              <div className="h-full w-full min-h-[500px] rounded-2xl border-4 border-white bg-white shadow-xl overflow-hidden relative">
-                <IncidentMap 
-                  incidents={incidents} 
-                  onMarkerClick={(id) => setSelectedIncidentId(id)} 
-                />
+              <div className="neon-edge relative h-[620px] w-full overflow-hidden rounded-3xl bg-white/5">
+                <IncidentMap incidents={incidents} onMarkerClick={(id) => setSelectedIncidentId(id)} />
               </div>
             )}
           </div>

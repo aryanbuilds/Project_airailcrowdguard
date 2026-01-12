@@ -1,89 +1,121 @@
-import { ArrowRight, ShieldAlert, BadgeInfo, FileUp, Bot } from "lucide-react";
+import { ArrowRight, ShieldAlert, BadgeInfo, FileUp, Radar, Activity, Siren, Bot } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="flex flex-col">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden py-24 sm:py-32">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="flex flex-col items-center text-center">
-            <div className="mb-6 flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-              <ShieldAlert className="h-4 w-4" />
-              <span>Safety First Monitoring</span>
+    <div className="space-y-10">
+      <section className="grid gap-6 lg:grid-cols-2">
+        <div className="neon-edge scanline rounded-3xl bg-white/5 p-8 sm:p-10">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="chip">
+              <Radar className="h-3.5 w-3.5" />
+              Network Watch
+            </span>
+            <span className="chip">
+              <Activity className="h-3.5 w-3.5" />
+              Real-time AI
+            </span>
+            <span className="chip">
+              <Siren className="h-3.5 w-3.5" />
+              High Priority Dispatch
+            </span>
+          </div>
+
+          <h1 className="mt-5 text-3xl font-black tracking-tight sm:text-5xl">
+            Rail Safety Command
+            <span className="block text-muted-foreground text-lg sm:text-xl font-extrabold mt-2">
+              AI-powered anomaly detection for track defects & tampering
+            </span>
+          </h1>
+
+          <p className="mt-5 text-sm text-muted-foreground leading-relaxed">
+            Upload field evidence (photo/video). The system runs a two-stage detection pipeline, assigns severity, and streams incidents to the Control Center for response.
+          </p>
+
+          <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/upload"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[color:var(--rail-accent)] to-[color:var(--rail-accent-2)] px-6 py-3 text-sm font-black text-slate-950 hover:brightness-110"
+            >
+              <FileUp className="h-4 w-4" />
+              Create Field Report
+            </Link>
+            <Link
+              href="/copilot"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-purple-600 to-blue-600 px-6 py-3 text-sm font-black text-white hover:brightness-110"
+            >
+              <Bot className="h-4 w-4" />
+              AI Copilot
+            </Link>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center gap-2 rounded-2xl border bg-white/5 px-6 py-3 text-sm font-extrabold hover:bg-white/10"
+            >
+              Open Control Center
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+
+          <div className="mt-8 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border bg-white/5 p-4">
+              <div className="text-xs font-extrabold tracking-widest text-muted-foreground uppercase">Response</div>
+              <div className="mt-2 text-lg font-black">Faster triage</div>
+              <div className="mt-1 text-xs text-muted-foreground">Auto severity + evidence frames</div>
             </div>
-            <h1 className="max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">
-              AI-Powered Railway Track Anomaly Detection
-            </h1>
-            <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">
-              Upload photos or short videos of railway tracks to detect defects and suspected tampering in real time. Help keep our railways safe with AI-driven insights.
-            </p>
-            <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-              <Link
-                href="/upload"
-                className="flex items-center justify-center gap-2 rounded-full bg-blue-600 px-8 py-4 text-lg font-semibold text-white shadow-sm hover:bg-blue-700 transition-all"
-              >
-                <FileUp className="h-5 w-5" />
-                Report an Issue
-              </Link>
-              <Link
-                href="/copilot"
-                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-8 py-4 text-lg font-semibold text-white shadow-sm hover:from-purple-700 hover:to-blue-700 transition-all"
-              >
-                <Bot className="h-5 w-5" />
-                AI Copilot
-              </Link>
-              <Link
-                href="/dashboard"
-                className="flex items-center justify-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 transition-all"
-              >
-                Admin Dashboard
-                <ArrowRight className="h-5 w-5" />
-              </Link>
+            <div className="rounded-2xl border bg-white/5 p-4">
+              <div className="text-xs font-extrabold tracking-widest text-muted-foreground uppercase">Coverage</div>
+              <div className="mt-2 text-lg font-black">Mobile-first</div>
+              <div className="mt-1 text-xs text-muted-foreground">Camera capture + GPS optional</div>
+            </div>
+            <div className="rounded-2xl border bg-white/5 p-4">
+              <div className="text-xs font-extrabold tracking-widest text-muted-foreground uppercase">Audit</div>
+              <div className="mt-2 text-lg font-black">Traceable</div>
+              <div className="mt-1 text-xs text-muted-foreground">Incident IDs + status workflow</div>
             </div>
           </div>
         </div>
-      </section>
 
-      {/* Features Section */}
-      <section className="bg-white py-24 sm:py-32">
-        <div className="container mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-1 gap-12 sm:grid-cols-4">
-            <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
-              <div className="mb-4 rounded-lg bg-blue-50 p-3 text-blue-600">
-                <FileUp className="h-6 w-6" />
-              </div>
-              <h3 className="text-xl font-bold text-slate-900">Mobile First Upload</h3>
-              <p className="mt-2 text-slate-600">
-                Report issues directly from your phone. Capture photos or short video clips of suspicious track areas.
-              </p>
+        <div className="neon-edge rounded-3xl bg-white/5 p-6 sm:p-8">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-xs font-extrabold tracking-widest text-muted-foreground uppercase">System Panel</div>
+              <div className="mt-1 text-xl font-black">Operational Readiness</div>
             </div>
-            <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
-              <div className="mb-4 rounded-lg bg-blue-50 p-3 text-blue-600">
-                <BadgeInfo className="h-6 w-6" />
+            <span className="chip">Live</span>
+          </div>
+
+          <div className="mt-6 grid gap-3">
+            <div className="scanline rounded-3xl border bg-white/5 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-[color:var(--rail-warning)]" />
+                  <div className="text-sm font-black">Signal Integrity</div>
+                </div>
+                <div className="text-xs font-extrabold text-[color:var(--rail-accent)]">OK</div>
               </div>
-              <h3 className="text-xl font-bold text-slate-900">Real-Time Analysis</h3>
-              <p className="mt-2 text-slate-600">
-                Our two-stage YOLOv8 pipeline analyzes every upload instantly to identify defects and assess severity.
-              </p>
+              <div className="mt-2 text-xs text-muted-foreground">Monitors tampering patterns in critical components.</div>
             </div>
-            <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
-              <div className="mb-4 rounded-lg bg-blue-50 p-3 text-blue-600">
-                <ShieldAlert className="h-6 w-6" />
+
+            <div className="rounded-3xl border bg-white/5 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <BadgeInfo className="h-4 w-4 text-[color:var(--rail-accent-2)]" />
+                  <div className="text-sm font-black">Vision Pipeline</div>
+                </div>
+                <div className="text-xs font-extrabold text-[color:var(--rail-accent)]">READY</div>
               </div>
-              <h3 className="text-xl font-bold text-slate-900">Tampering Detection</h3>
-              <p className="mt-2 text-slate-600">
-                Detect missing components and signs of unauthorized work on critical railway infrastructure.
-              </p>
+              <div className="mt-2 text-xs text-muted-foreground">Two-stage detection, severity grading, evidence extraction.</div>
             </div>
-            <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
-              <div className="mb-4 rounded-lg bg-gradient-to-br from-purple-100 to-blue-100 p-3 text-purple-600">
-                <Bot className="h-6 w-6" />
+
+            <div className="rounded-3xl border bg-white/5 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Radar className="h-4 w-4 text-[color:var(--rail-accent)]" />
+                  <div className="text-sm font-black">Incident Feed</div>
+                </div>
+                <div className="text-xs font-extrabold text-muted-foreground">10s</div>
               </div>
-              <h3 className="text-xl font-bold text-slate-900">Graph-RAG Copilot</h3>
-              <p className="mt-2 text-slate-600">
-                Chat with AI to query anomaly data. Ask questions like &quot;Show all critical cracks on Track 5&quot;.
-              </p>
+              <div className="mt-2 text-xs text-muted-foreground">Dashboard auto-refresh interval.</div>
             </div>
           </div>
         </div>
