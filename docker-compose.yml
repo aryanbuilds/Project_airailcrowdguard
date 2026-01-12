@@ -1,0 +1,118 @@
+services:
+  # =============================================================================
+  # Neo4j Graph Database
+  # =============================================================================
+  neo4j:
+    image: neo4j:5-community
+    container_name: railway-neo4j
+    ports:
+      - "7474:7474"  # HTTP Browser
+      - "7687:7687"  # Bolt Protocol
+    environment:
+      - NEO4J_AUTH=neo4j/password
+      - NEO4J_PLUGINS=["apoc"]
+      - NEO4J_dbms_security_procedures_unrestricted=apoc.*
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7474"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - railway-net
+
+  # =============================================================================
+  # MinIO Object Storage (S3-Compatible)
+  # =============================================================================
+  minio:
+    image: minio/minio:latest
+    container_name: railway-minio
+    ports:
+      - "9000:9000"   # API Port
+      - "9001:9001"   # Console Port
+    environment:
+      - MINIO_ROOT_USER=railadmin
+      - MINIO_ROOT_PASSWORD=railsecret123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - railway-net
+
+  # =============================================================================
+  # MinIO Client - Auto-create buckets on startup
+  # =============================================================================
+  minio-init:
+    image: minio/mc:latest
+    container_name: railway-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set railway http://minio:9000 railadmin railsecret123;
+      mc mb --ignore-existing railway/railway-frames;
+      mc mb --ignore-existing railway/railway-uploads;
+      mc mb --ignore-existing railway/railway-reports;
+      mc anonymous set download railway/railway-frames;
+      echo 'Buckets created and configured!';
+      exit 0;
+      "
+    networks:
+      - railway-net
+
+  # =============================================================================
+  # Redis Cache (Optional - for session/rate limiting)
+  # =============================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: railway-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - railway-net
+
+networks:
+  railway-net:
+    driver: bridge
+
+volumes:
+  neo4j_data:
+  neo4j_logs:
+  minio_data:
+  redis_data:
+  # ollama_data:
+
+# =============================================================================
+# Usage:
+# =============================================================================
+# Start services:
+#   docker-compose up -d
+#
+# Stop services:
+#   docker-compose down
+#
+# View logs:
+#   docker-compose logs -f neo4j
+#
+# Access Neo4j Browser:
+#   http://localhost:7474
+#   Username: neo4j
+#   Password: password
+# =============================================================================

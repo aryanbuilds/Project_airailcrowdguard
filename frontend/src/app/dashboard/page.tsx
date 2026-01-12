@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, RefreshCw, AlertCircle, Map as MapIcon, List as ListIcon, ShieldCheck, Terminal, Upload } from "lucide-react";
+import { Loader2, RefreshCw, AlertCircle, Map as MapIcon, List as ListIcon, ShieldCheck, Terminal, Upload, Bot } from "lucide-react";
 
 import IncidentCard from "@/components/IncidentCard";
 import SeverityBadge from "@/components/SeverityBadge";
@@ -94,6 +94,13 @@ export default function Dashboard() {
             <p className="text-sm text-slate-500">Monitoring {incidents.length} active anomalies</p>
           </div>
           <div className="flex items-center gap-3">
+            <Link 
+              href="/copilot" 
+              className="flex items-center gap-2 rounded-lg border border-purple-200 bg-gradient-to-r from-purple-600 to-blue-600 px-4 py-2 text-sm font-bold text-white hover:from-purple-700 hover:to-blue-700 transition-all shadow-md"
+            >
+              <Bot className="h-4 w-4" />
+              AI Copilot
+            </Link>
             <Link 
               href="/console" 
               target="_blank"

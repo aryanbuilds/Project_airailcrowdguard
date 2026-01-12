@@ -1,4 +1,4 @@
-import { ArrowRight, ShieldAlert, BadgeInfo, FileUp } from "lucide-react";
+import { ArrowRight, ShieldAlert, BadgeInfo, FileUp, Bot } from "lucide-react";
 import Link from "next/link";
 
 export default function Home() {
@@ -27,6 +27,13 @@ export default function Home() {
                 Report an Issue
               </Link>
               <Link
+                href="/copilot"
+                className="flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 px-8 py-4 text-lg font-semibold text-white shadow-sm hover:from-purple-700 hover:to-blue-700 transition-all"
+              >
+                <Bot className="h-5 w-5" />
+                AI Copilot
+              </Link>
+              <Link
                 href="/dashboard"
                 className="flex items-center justify-center gap-2 rounded-full bg-white px-8 py-4 text-lg font-semibold text-slate-900 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50 transition-all"
               >
@@ -41,7 +48,7 @@ export default function Home() {
       {/* Features Section */}
       <section className="bg-white py-24 sm:py-32">
         <div className="container mx-auto px-4 sm:px-6">
-          <div className="grid grid-cols-1 gap-12 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-12 sm:grid-cols-4">
             <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
               <div className="mb-4 rounded-lg bg-blue-50 p-3 text-blue-600">
                 <FileUp className="h-6 w-6" />
@@ -67,6 +74,15 @@ export default function Home() {
               <h3 className="text-xl font-bold text-slate-900">Tampering Detection</h3>
               <p className="mt-2 text-slate-600">
                 Detect missing components and signs of unauthorized work on critical railway infrastructure.
+              </p>
+            </div>
+            <div className="flex flex-col items-center text-center sm:items-start sm:text-left">
+              <div className="mb-4 rounded-lg bg-gradient-to-br from-purple-100 to-blue-100 p-3 text-purple-600">
+                <Bot className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900">Graph-RAG Copilot</h3>
+              <p className="mt-2 text-slate-600">
+                Chat with AI to query anomaly data. Ask questions like &quot;Show all critical cracks on Track 5&quot;.
               </p>
             </div>
           </div>

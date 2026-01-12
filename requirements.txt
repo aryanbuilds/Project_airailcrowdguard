@@ -16,6 +16,18 @@ sqlalchemy>=2.0.0
 aiofiles>=23.0.0
 pydantic>=2.0.0
 
+# Graph-RAG Dependencies (Neo4j + LangGraph + Ollama)
+neo4j>=5.15.0
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-ollama>=0.2.0
+sse-starlette>=2.0.0
+
+# Object Storage (MinIO - S3 Compatible)
+minio>=7.2.0
+
 # Utilities
 pyyaml>=6.0
 requests>=2.25.0

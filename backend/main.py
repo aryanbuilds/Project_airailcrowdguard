@@ -7,12 +7,27 @@ from typing import Optional, List
 from fastapi import FastAPI, File, UploadFile, Form, BackgroundTasks, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
+import json
 
 from backend.database import init_db, get_db, Media, Incident
 from backend.ml_worker import load_models, process_frames, get_severity_level
 
-app = FastAPI(title="Railway Anomaly Detection API", version="1.0.0")
+# MinIO Storage - Optional, falls back to local if unavailable
+USE_MINIO = False
+try:
+    from backend.storage import (
+        init_storage, test_minio_connection, upload_frame,
+        get_frame_url, list_frames, migrate_local_frames_to_minio,
+        MINIO_ENDPOINT, BUCKET_FRAMES
+    )
+    USE_MINIO = True
+except ImportError:
+    print("MinIO storage module not available, using local storage")
+
+app = FastAPI(title="Railway Anomaly Detection API", version="2.0.0")
 
 # CORS setup for frontend access
 app.add_middleware(
@@ -59,10 +74,284 @@ def log_event(message: str, level="INFO"):
     else:
         logging.info(message)
 
+
+# ============================================================================
+# Pydantic Models for Chat API
+# ============================================================================
+
+class ChatRequest(BaseModel):
+    """Request model for chat endpoint."""
+    message: str = Field(..., min_length=1, max_length=2000, description="User's question")
+    conversation_id: Optional[str] = Field(None, description="Optional conversation ID for context")
+
+
+class AnomalyData(BaseModel):
+    """Structured anomaly data for frontend rendering."""
+    id: Optional[str] = None
+    type: Optional[str] = None
+    severity: Optional[str] = None
+    confidence: Optional[float] = None
+    status: Optional[str] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    track_name: Optional[str] = None
+    detected_at: Optional[str] = None
+    image_path: Optional[str] = None
+
+
+class ChatResponse(BaseModel):
+    """Response model for chat endpoint."""
+    answer: str = Field(..., description="Natural language response")
+    cypher_query: str = Field(default="", description="Generated Cypher query (for debugging)")
+    data: List[dict] = Field(default=[], description="Structured data for UI rendering")
+    data_type: str = Field(default="text", description="Type of data: text, anomalies, tracks, stats")
+    error: Optional[str] = Field(None, description="Error message if any")
+
+
+class GraphStatsResponse(BaseModel):
+    """Graph database statistics."""
+    tracks: int = 0
+    segments: int = 0
+    inspections: int = 0
+    total_anomalies: int = 0
+    open_anomalies: int = 0
+    critical: int = 0
+    high_severity: int = 0
+
+
+# ============================================================================
+# Graph-RAG Chat Endpoints
+# ============================================================================
+
+@app.post("/api/v1/chat", response_model=ChatResponse)
+async def chat_endpoint(request: ChatRequest):
+    """
+    Graph-RAG Chat Endpoint.
+    
+    Accepts natural language questions about railway anomalies and returns
+    answers powered by LangGraph + Ollama + Neo4j.
+    
+    Example queries:
+    - "Show me all critical cracks"
+    - "How many anomalies are there by type?"
+    - "What tracks have the most issues?"
+    - "Find all open HIGH severity issues"
+    """
+    log_event(f"Chat query received: {request.message[:50]}...", "INFO")
+    
+    try:
+        from backend.agent import process_query
+        
+        result = await process_query(request.message)
+        
+        # Determine data type for frontend rendering
+        data_type = "text"
+        if result.get("data"):
+            first_record = result["data"][0] if result["data"] else {}
+            if "anomaly_type" in first_record or "type" in first_record or "severity" in first_record:
+                data_type = "anomalies"
+            elif "track_id" in first_record or "track_name" in first_record:
+                data_type = "tracks"
+            elif "count" in first_record:
+                data_type = "stats"
+        
+        log_event(f"Chat response generated. Data type: {data_type}, Records: {len(result.get('data', []))}", "SUCCESS")
+        
+        return ChatResponse(
+            answer=result["answer"],
+            cypher_query=result.get("cypher_query", ""),
+            data=result.get("data", []),
+            data_type=data_type,
+            error=result.get("error")
+        )
+        
+    except ImportError as e:
+        log_event(f"Graph-RAG module not available: {e}", "ERROR")
+        return ChatResponse(
+            answer="The Graph-RAG system is not fully configured. Please ensure Neo4j is running and Ollama is available.",
+            error=str(e),
+            data_type="text"
+        )
+    except Exception as e:
+        log_event(f"Chat error: {e}", "ERROR")
+        return ChatResponse(
+            answer=f"I encountered an error processing your request: {str(e)}",
+            error=str(e),
+            data_type="text"
+        )
+
+
+@app.get("/api/v1/graph/stats", response_model=GraphStatsResponse)
+async def get_graph_stats():
+    """Get graph database statistics for dashboard."""
+    try:
+        from backend.graph_db import GraphRepository
+        
+        stats = GraphRepository.get_graph_statistics()
+        return GraphStatsResponse(**stats)
+    except Exception as e:
+        log_event(f"Graph stats error: {e}", "ERROR")
+        return GraphStatsResponse()
+
+
+@app.post("/api/v1/graph/init")
+async def init_graph_database():
+    """Initialize or reset the graph database schema."""
+    try:
+        from backend.graph_db import init_graph_schema, test_connection
+        
+        if not test_connection():
+            raise HTTPException(status_code=503, detail="Cannot connect to Neo4j")
+        
+        init_graph_schema()
+        log_event("Graph schema initialized", "SUCCESS")
+        return {"status": "success", "message": "Graph schema initialized"}
+    except Exception as e:
+        log_event(f"Graph init error: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/graph/demo-data")
+async def generate_demo_graph_data(count: int = 50):
+    """Generate demo data in the graph database."""
+    try:
+        from backend.ingest import generate_demo_data
+        
+        result = generate_demo_data(num_anomalies=count)
+        log_event(f"Demo data generated: {result}", "SUCCESS")
+        return {"status": "success", "created": result}
+    except Exception as e:
+        log_event(f"Demo data error: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/graph/sync")
+async def sync_sqlite_to_neo4j():
+    """Sync existing SQLite incidents to Neo4j."""
+    try:
+        from backend.ingest import sync_sqlite_to_graph
+        
+        sync_sqlite_to_graph()
+        log_event("SQLite synced to Neo4j", "SUCCESS")
+        return {"status": "success", "message": "Data synced to graph database"}
+    except Exception as e:
+        log_event(f"Sync error: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/graph/health")
+async def graph_health_check():
+    """Check Neo4j, Ollama, and MinIO connectivity."""
+    global USE_MINIO
+    status = {
+        "neo4j": False,
+        "ollama": False,
+        "minio": False,
+        "models_loaded": False
+    }
+    
+    # Check Neo4j
+    try:
+        from backend.graph_db import test_connection
+        status["neo4j"] = test_connection()
+    except Exception:
+        pass
+    
+    # Check Ollama
+    try:
+        import requests
+        resp = requests.get("http://localhost:11434/api/tags", timeout=5)
+        status["ollama"] = resp.status_code == 200
+    except Exception:
+        pass
+    
+    # Check MinIO
+    try:
+        if USE_MINIO:
+            status["minio"] = test_minio_connection()
+    except Exception:
+        pass
+    
+    # Check YOLO models
+    status["models_loaded"] = True  # Already loaded at startup
+    
+    return status
+
+
+# ============================================================================
+# Storage & Migration Endpoints
+# ============================================================================
+
+@app.get("/api/v1/storage/status")
+async def storage_status():
+    """Get current storage configuration."""
+    global USE_MINIO
+    return {
+        "storage_type": "minio" if USE_MINIO else "local",
+        "minio_endpoint": MINIO_ENDPOINT if USE_MINIO else None,
+        "minio_connected": test_minio_connection() if USE_MINIO else False,
+        "frames_bucket": BUCKET_FRAMES if USE_MINIO else None
+    }
+
+
+@app.post("/api/v1/storage/migrate")
+async def migrate_to_minio():
+    """Migrate local frames to MinIO storage."""
+    global USE_MINIO
+    
+    if not USE_MINIO:
+        raise HTTPException(status_code=503, detail="MinIO storage not available")
+    
+    try:
+        stats = migrate_local_frames_to_minio(FRAMES_DIR)
+        log_event(f"Migration complete: {stats}", "SUCCESS")
+        return {"status": "success", "stats": stats}
+    except Exception as e:
+        log_event(f"Migration error: {e}", "ERROR")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/frames/{media_id}/{frame_name}")
+async def get_frame(media_id: str, frame_name: str):
+    """
+    Get frame URL - returns MinIO URL if available, otherwise serves local file.
+    """
+    global USE_MINIO
+    
+    if USE_MINIO:
+        try:
+            frame_url = get_frame_url(media_id, frame_name)
+            return {"url": frame_url, "storage": "minio"}
+        except Exception:
+            pass
+    
+    # Fallback to local file
+    local_path = FRAMES_DIR / media_id / frame_name
+    if local_path.exists():
+        return {"url": f"/frames/{media_id}/{frame_name}", "storage": "local"}
+    
+    raise HTTPException(status_code=404, detail="Frame not found")
+
+
+# ============================================================================
+# Original Endpoints (Unchanged)
+# ============================================================================
+
 @app.on_event("startup")
 async def startup_event():
-    """Load ML models on startup."""
+    """Load ML models and initialize storage on startup."""
+    global USE_MINIO
     log_event("Starting up RailSafe API...", "INFO")
+    
+    # Initialize MinIO storage
+    if USE_MINIO:
+        log_event("Initializing MinIO storage...", "INFO")
+        if init_storage():
+            log_event(f"MinIO storage ready at {MINIO_ENDPOINT}", "SUCCESS")
+        else:
+            log_event("MinIO unavailable, using local storage", "WARNING")
+            USE_MINIO = False
+    
     log_event("Loading ML models...", "INFO")
     load_models()
     log_event("Models loaded successfully. API Ready.", "SUCCESS")
@@ -85,7 +374,9 @@ def get_logs():
 def process_media_background(media_id: str, file_path: Path, media_type: str, lat: float, lng: float, db: Session):
     """
     Background task to extract frames and run cascade inference.
+    Uploads results to MinIO if available, otherwise uses local storage.
     """
+    global USE_MINIO
     frame_output_dir = FRAMES_DIR / media_id
     frame_output_dir.mkdir(exist_ok=True)
 
@@ -126,6 +417,15 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
                     # Remove temp file
                     temp_video_path.unlink()
                     results["video_file"] = "annotated.mp4"
+                    
+                    # Upload to MinIO if available
+                    if USE_MINIO:
+                        try:
+                            minio_url = upload_frame(media_id, "annotated.mp4", final_video_path)
+                            log_event(f"Video uploaded to MinIO: {minio_url}", "SUCCESS")
+                        except Exception as minio_err:
+                            log_event(f"MinIO upload failed: {minio_err}", "WARNING")
+                            
                 except Exception as ff_err:
                     print(f"FFmpeg encoding failed: {ff_err}. Falling back to raw video.")
                     # Fallback: just rename temp to final
@@ -141,6 +441,15 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
             
             log_event(f"Running cascade inference on {media_id}...", "INFO")
             results = process_frames(str(frame_output_dir))
+            
+            # Upload frame to MinIO if available
+            if USE_MINIO:
+                try:
+                    for frame_file in frame_output_dir.glob("*.jpg"):
+                        minio_url = upload_frame(media_id, frame_file.name, frame_file)
+                        log_event(f"Frame uploaded to MinIO: {frame_file.name}", "SUCCESS")
+                except Exception as minio_err:
+                    log_event(f"MinIO upload failed: {minio_err}", "WARNING")
             
             # Add single frame to detection list
             if results["defective_frames"] > 0:

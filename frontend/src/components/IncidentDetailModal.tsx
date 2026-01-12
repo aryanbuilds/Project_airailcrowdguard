@@ -4,6 +4,9 @@ import { useState, useEffect } from "react";
 import { X, MapPin, Clock, Fingerprint, ShieldAlert, FileText, CheckCircle, ExternalLink } from "lucide-react";
 import SeverityBadge from "./SeverityBadge";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const MINIO_URL = process.env.NEXT_PUBLIC_MINIO_URL || "http://localhost:9000";
+
 interface Incident {
   id: string;
   media_id: string;
@@ -17,6 +20,17 @@ interface Incident {
   evidence_frames?: string[];
   reporter_name?: string;
   reporter_phone?: string;
+}
+
+// Helper to get the correct frame URL (MinIO or local fallback)
+function getFrameUrl(mediaId: string, frameName: string): string {
+  // Try MinIO first (public bucket)
+  const minioUrl = `${MINIO_URL}/railway-frames/${mediaId}/${frameName}`;
+  // Fallback to local API
+  const localUrl = `${API_BASE}/frames/${mediaId}/${frameName}`;
+  
+  // Use MinIO URL - the bucket is configured for public access
+  return minioUrl;
 }
 
 export default function IncidentDetailModal({ 
@@ -62,16 +76,30 @@ export default function IncidentDetailModal({
           {incident.evidence_frames && incident.evidence_frames.length > 0 ? (
             incident.evidence_frames[0].endsWith(".mp4") ? (
               <video 
-                src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/frames/${incident.media_id}/${incident.evidence_frames[0]}`}
+                src={getFrameUrl(incident.media_id, incident.evidence_frames[0])}
                 controls
                 autoPlay
                 className="w-full h-full object-contain"
+                onError={(e) => {
+                  // Fallback to local URL if MinIO fails
+                  const target = e.target as HTMLVideoElement;
+                  if (!target.src.includes(API_BASE)) {
+                    target.src = `${API_BASE}/frames/${incident.media_id}/${incident.evidence_frames![0]}`;
+                  }
+                }}
               />
             ) : (
               <img 
-                src={`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/frames/${incident.media_id}/${incident.evidence_frames[0]}`}
+                src={getFrameUrl(incident.media_id, incident.evidence_frames[0])}
                 alt="Evidence"
                 className="w-full h-full object-contain"
+                onError={(e) => {
+                  // Fallback to local URL if MinIO fails
+                  const target = e.target as HTMLImageElement;
+                  if (!target.src.includes(API_BASE)) {
+                    target.src = `${API_BASE}/frames/${incident.media_id}/${incident.evidence_frames![0]}`;
+                  }
+                }}
               />
             )
           ) : (
