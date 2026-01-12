@@ -13,14 +13,22 @@ Architecture:
 """
 
 import os
+import json
+from pathlib import Path
 from typing import Dict, List, Optional, Literal, Annotated, TypedDict
 from datetime import datetime
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 
 from langgraph.graph import StateGraph, END
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.output_parsers import StrOutputParser
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from backend.graph_db import GraphRepository, Neo4jConnection
 
@@ -29,9 +37,16 @@ from backend.graph_db import GraphRepository, Neo4jConnection
 # Configuration
 # ============================================================================
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 MAX_RETRIES = 3
+
+
+def _require_google_api_key() -> str:
+    if not GOOGLE_API_KEY:
+        raise RuntimeError(
+            "GOOGLE_API_KEY is not set. Create a local .env file (not committed) or set it in your shell environment."
+        )
+    return GOOGLE_API_KEY
 
 
 # ============================================================================
@@ -240,13 +255,32 @@ Please provide a helpful, natural language response summarizing these findings."
 # LLM Initialization
 # ============================================================================
 
+def _gemini_model_name() -> str:
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+    # Some APIs list models as "models/<name>"; LangChain expects just the name.
+    if model.startswith("models/"):
+        model = model[len("models/"):]
+    return model
+
 def get_llm():
-    """Get configured Ollama LLM instance."""
-    return ChatOllama(
-        base_url=OLLAMA_BASE_URL,
-        model=OLLAMA_MODEL,
-        temperature=0.1,  # Low temperature for consistent Cypher generation
-        num_ctx=8192,     # Context window
+    """Get configured Google Gemini LLM instance."""
+    return ChatGoogleGenerativeAI(
+        model=_gemini_model_name(),
+        google_api_key=_require_google_api_key(),
+        temperature=0.1,
+        max_output_tokens=512,
+        timeout=60,
+    )
+
+
+def get_streaming_llm():
+    """Get configured Google Gemini LLM with streaming."""
+    return ChatGoogleGenerativeAI(
+        model=_gemini_model_name(),
+        google_api_key=_require_google_api_key(),
+        temperature=0.3,
+        max_output_tokens=1024,
+        streaming=True,
     )
 
 
@@ -499,6 +533,100 @@ async def process_query(question: str) -> Dict:
         "error": final_state.get("error"),
         "retries": final_state.get("retry_count", 0)
     }
+
+
+async def process_query_streaming(question: str):
+    """
+    Process a query with streaming response - yields tokens as they're generated.
+    
+    Yields:
+        Dict chunks with type: 'cypher', 'data', 'token', 'error', or 'done'
+    """
+    from typing import AsyncGenerator
+    
+    try:
+        # Step 1: Generate Cypher query (non-streaming, it's short)
+        llm = get_llm()
+        
+        error_context = ""
+        chain = CYPHER_GENERATION_PROMPT | llm | StrOutputParser()
+        
+        cypher_response = chain.invoke({
+            "schema": GRAPH_SCHEMA,
+            "examples": FEW_SHOT_EXAMPLES,
+            "error_context": error_context,
+            "question": question
+        })
+        
+        # Extract Cypher from response
+        cypher = cypher_response.strip()
+        if "```cypher" in cypher:
+            cypher = cypher.split("```cypher")[1].split("```")[0].strip()
+        elif "```" in cypher:
+            cypher = cypher.split("```")[1].split("```")[0].strip()
+        
+        yield {"type": "cypher", "query": cypher}
+        
+        # Step 2: Execute query
+        try:
+            results = GraphRepository.execute_cypher(cypher)
+            
+            # Convert to serializable format
+            serializable_results = []
+            for record in results:
+                clean_record = {}
+                for key, value in record.items():
+                    if hasattr(value, 'isoformat'):
+                        clean_record[key] = value.isoformat()
+                    elif hasattr(value, '__dict__'):
+                        clean_record[key] = dict(value)
+                    else:
+                        clean_record[key] = value
+                serializable_results.append(clean_record)
+            
+            # Determine data type
+            data_type = "text"
+            if serializable_results:
+                first = serializable_results[0]
+                if "anomaly_type" in first or "type" in first or "severity" in first:
+                    data_type = "anomalies"
+                elif "track_id" in first or "track_name" in first:
+                    data_type = "tracks"
+                elif "count" in first:
+                    data_type = "stats"
+            
+            yield {"type": "data", "data": serializable_results, "data_type": data_type}
+            
+        except Exception as db_error:
+            yield {"type": "error", "error": f"Database error: {str(db_error)}"}
+            serializable_results = []
+        
+        # Step 3: Stream the response synthesis
+        if not serializable_results:
+            yield {"type": "token", "content": f"I couldn't find any results for your query: '{question}'. Try rephrasing or ask about anomalies, tracks, or inspections."}
+        else:
+            # Use streaming LLM for response
+            streaming_llm = get_streaming_llm()
+            
+            # Format results for prompt
+            results_str = json.dumps(serializable_results[:20], indent=2)  # Limit to 20 results
+            
+            prompt = f"""You are a helpful railway maintenance assistant. Summarize these database query results clearly and professionally.
+
+User's question: {question}
+
+Query results (showing up to 20 records):
+{results_str}
+
+Provide a concise, helpful summary. Highlight critical issues first. Format numbers nicely."""
+
+            # Stream tokens
+            async for chunk in streaming_llm.astream(prompt):
+                if hasattr(chunk, 'content') and chunk.content:
+                    yield {"type": "token", "content": chunk.content}
+                    
+    except Exception as e:
+        yield {"type": "error", "error": str(e)}
 
 
 def process_query_sync(question: str) -> Dict:

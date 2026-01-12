@@ -36,6 +36,11 @@ TRACK_DATA = [
     {"track_id": "TRACK-003", "name": "Suburban Loop West", "region": "Western Division", "total_length_km": 67.8},
     {"track_id": "TRACK-004", "name": "Freight Line South", "region": "Southern Division", "total_length_km": 203.4},
     {"track_id": "TRACK-005", "name": "High-Speed Connector", "region": "Central Division", "total_length_km": 112.0},
+    {"track_id": "TRACK-006", "name": "Mumbai-Delhi Express", "region": "Western Corridor", "total_length_km": 1384.0},
+    {"track_id": "TRACK-007", "name": "Chennai Metro Line A", "region": "Southern Metro", "total_length_km": 45.1},
+    {"track_id": "TRACK-008", "name": "Kolkata Circular Rail", "region": "Eastern Metro", "total_length_km": 35.8},
+    {"track_id": "TRACK-009", "name": "Bangalore Suburban", "region": "Karnataka Division", "total_length_km": 78.3},
+    {"track_id": "TRACK-010", "name": "Jaipur-Agra Heritage Line", "region": "Rajasthan Division", "total_length_km": 232.0},
 ]
 
 ANOMALY_TYPES = [
@@ -47,17 +52,27 @@ ANOMALY_TYPES = [
     "broken_tie",
     "gauge_deviation",
     "vegetation_overgrowth",
-    "ballast_deficiency"
+    "ballast_deficiency",
+    "rail_corrosion",
+    "fishplate_crack",
+    "sleeper_damage",
+    "track_misalignment",
+    "drainage_blockage"
 ]
 
 SEVERITY_WEIGHTS = {
-    "CRITICAL": 0.05,
-    "HIGH": 0.15,
+    "CRITICAL": 0.08,
+    "HIGH": 0.20,
     "MEDIUM": 0.35,
-    "LOW": 0.45
+    "LOW": 0.37
 }
 
-TERRAIN_TYPES = ["flat", "hilly", "bridge", "tunnel", "crossing"]
+TERRAIN_TYPES = ["flat", "hilly", "bridge", "tunnel", "crossing", "curve", "junction", "station_approach"]
+
+INSPECTOR_NAMES = [
+    "Rajesh Kumar", "Amit Sharma", "Priya Patel", "Suresh Reddy", "Anil Verma",
+    "Deepak Singh", "Kavita Gupta", "Ravi Krishnan", "Neha Joshi", "Vikram Malhotra"
+]
 
 
 # ============================================================================
@@ -268,9 +283,9 @@ def generate_demo_data(num_anomalies: int = 50):
             inspection_id=inspection_id,
             media_id=f"MEDIA-{uuid.uuid4().hex[:8]}",
             timestamp=inspection_date.isoformat(),
-            inspector_name=f"Inspector {random.choice(['A', 'B', 'C', 'D', 'E'])}",
+            inspector_name=random.choice(INSPECTOR_NAMES),
             inspector_phone=f"+91-{random.randint(7000000000, 9999999999)}",
-            inspection_type=random.choice(["manual", "drone", "train-mounted"])
+            inspection_type=random.choice(["manual", "drone", "train-mounted", "walking_patrol", "ultrasonic"])
         )
         repo.create_inspection(inspection)
         inspections.append(inspection_id)

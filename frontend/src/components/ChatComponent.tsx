@@ -108,7 +108,14 @@ const AnomalyTable: React.FC<{ data: AnomalyData[] }> = ({ data }) => {
                   {item.severity && <SeverityBadge severity={item.severity} />}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-600">
-                  {item.confidence ? `${(item.confidence * 100).toFixed(1)}%` : "—"}
+                  {item.confidence != null ? (
+                    <span className={`font-medium ${
+                      item.confidence >= 0.8 ? 'text-green-600' : 
+                      item.confidence >= 0.5 ? 'text-yellow-600' : 'text-red-600'
+                    }`}>
+                      {(Number(item.confidence) * 100).toFixed(0)}%
+                    </span>
+                  ) : "—"}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-600">
                   {item.track_name || item.track_id || "—"}
@@ -352,20 +359,21 @@ export default function ChatComponent() {
       timestamp: new Date(),
     };
 
-    const loadingMessage: ChatMessage = {
+    const streamingMessage: ChatMessage = {
       id: (Date.now() + 1).toString(),
       role: "assistant",
-      content: "Analyzing your query...",
+      content: "",
       timestamp: new Date(),
       isLoading: true,
     };
 
-    setMessages((prev) => [...prev, userMessage, loadingMessage]);
+    setMessages((prev) => [...prev, userMessage, streamingMessage]);
     setInput("");
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/chat`, {
+      // Use streaming endpoint
+      const response = await fetch(`${API_BASE}/api/v1/chat/stream`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: text.trim() }),
@@ -375,30 +383,113 @@ export default function ChatComponent() {
         throw new Error(`HTTP ${response.status}`);
       }
 
-      const data: ChatResponse = await response.json();
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      let accumulatedContent = "";
+      let cypherQuery = "";
+      let data: AnomalyData[] = [];
+      let dataType = "text";
 
-      const assistantMessage: ChatMessage = {
-        id: (Date.now() + 2).toString(),
-        role: "assistant",
-        content: data.answer,
-        timestamp: new Date(),
-        data: data.data,
-        dataType: data.data_type,
-        cypherQuery: data.cypher_query,
-        error: data.error || undefined,
-      };
-
-      setMessages((prev) => [...prev.slice(0, -1), assistantMessage]);
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = decoder.decode(value, { stream: true });
+          const lines = chunk.split("\n");
+          
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              try {
+                const jsonData = JSON.parse(line.slice(6));
+                
+                if (jsonData.type === "token") {
+                  accumulatedContent += jsonData.content;
+                  // Update message with streamed content
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastIdx = updated.length - 1;
+                    updated[lastIdx] = {
+                      ...updated[lastIdx],
+                      content: accumulatedContent,
+                      isLoading: true,
+                    };
+                    return updated;
+                  });
+                } else if (jsonData.type === "cypher") {
+                  cypherQuery = jsonData.query;
+                } else if (jsonData.type === "data") {
+                  data = jsonData.data;
+                  dataType = jsonData.data_type || "text";
+                } else if (jsonData.type === "error") {
+                  accumulatedContent = `Error: ${jsonData.error}`;
+                } else if (jsonData.type === "done") {
+                  // Finalize the message
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    const lastIdx = updated.length - 1;
+                    updated[lastIdx] = {
+                      ...updated[lastIdx],
+                      content: accumulatedContent || "No response generated.",
+                      isLoading: false,
+                      cypherQuery,
+                      data,
+                      dataType,
+                    };
+                    return updated;
+                  });
+                }
+              } catch {
+                // Skip invalid JSON lines
+              }
+            }
+          }
+        }
+      }
     } catch (error) {
-      const errorMessage: ChatMessage = {
-        id: (Date.now() + 2).toString(),
-        role: "assistant",
-        content: `Failed to connect to the server. Please ensure the backend is running.`,
-        timestamp: new Date(),
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
+      // Fallback to non-streaming endpoint on error
+      try {
+        const response = await fetch(`${API_BASE}/api/v1/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text.trim() }),
+        });
 
-      setMessages((prev) => [...prev.slice(0, -1), errorMessage]);
+        if (response.ok) {
+          const data: ChatResponse = await response.json();
+          setMessages((prev) => {
+            const updated = [...prev];
+            updated[updated.length - 1] = {
+              id: (Date.now() + 2).toString(),
+              role: "assistant",
+              content: data.answer,
+              timestamp: new Date(),
+              data: data.data,
+              dataType: data.data_type,
+              cypherQuery: data.cypher_query,
+              error: data.error || undefined,
+              isLoading: false,
+            };
+            return updated;
+          });
+        } else {
+          throw new Error("Both streaming and fallback failed");
+        }
+      } catch {
+        setMessages((prev) => {
+          const updated = [...prev];
+          updated[updated.length - 1] = {
+            id: (Date.now() + 2).toString(),
+            role: "assistant",
+            content: `Failed to connect to the server. Please ensure the backend is running.`,
+            timestamp: new Date(),
+            error: error instanceof Error ? error.message : "Unknown error",
+            isLoading: false,
+          };
+          return updated;
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -455,7 +546,7 @@ export default function ChatComponent() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about anomalies, tracks, or inspections..."
             disabled={isLoading}
-            className="flex-1 px-4 py-3 rounded-full border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 px-4 py-3 rounded-full border border-slate-200 bg-white text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50 disabled:cursor-not-allowed"
           />
           <button
             type="submit"

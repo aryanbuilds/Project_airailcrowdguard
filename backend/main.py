@@ -1,5 +1,6 @@
 import shutil
 import uuid
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
@@ -11,6 +12,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, Field
 import json
+
+from dotenv import load_dotenv
 
 from backend.database import init_db, get_db, Media, Incident
 from backend.ml_worker import load_models, process_frames, get_severity_level
@@ -52,6 +55,9 @@ app.mount("/uploads", StaticFiles(directory=str(UPLOAD_DIR)), name="uploads")
 app.mount("/frames", StaticFiles(directory=str(FRAMES_DIR)), name="frames")
 
 # Initialize DB and load ML models
+# Always load env from the project root so running uvicorn from other folders still works.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 init_db()
 
 import logging
@@ -181,6 +187,53 @@ async def chat_endpoint(request: ChatRequest):
         )
 
 
+@app.post("/api/v1/chat/stream")
+async def chat_stream_endpoint(request: ChatRequest):
+    """
+    Streaming Graph-RAG Chat Endpoint.
+    
+    Returns Server-Sent Events (SSE) with tokens streamed in chunks.
+    """
+    import asyncio
+    
+    log_event(f"Streaming chat query: {request.message[:50]}...", "INFO")
+    
+    async def generate_stream():
+        try:
+            from backend.agent import process_query_streaming
+            
+            # First yield: indicate processing started
+            yield f"data: {json.dumps({'type': 'start', 'message': 'Processing query...'})}\n\n"
+            
+            async for chunk in process_query_streaming(request.message):
+                if chunk.get("type") == "cypher":
+                    yield f"data: {json.dumps({'type': 'cypher', 'query': chunk['query']})}\n\n"
+                elif chunk.get("type") == "data":
+                    yield f"data: {json.dumps({'type': 'data', 'data': chunk['data'], 'data_type': chunk.get('data_type', 'text')})}\n\n"
+                elif chunk.get("type") == "token":
+                    yield f"data: {json.dumps({'type': 'token', 'content': chunk['content']})}\n\n"
+                elif chunk.get("type") == "error":
+                    yield f"data: {json.dumps({'type': 'error', 'error': chunk['error']})}\n\n"
+                await asyncio.sleep(0)  # Allow other tasks to run
+            
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            
+        except Exception as e:
+            log_event(f"Stream error: {e}", "ERROR")
+            yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+    
+    return StreamingResponse(
+        generate_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+
 @app.get("/api/v1/graph/stats", response_model=GraphStatsResponse)
 async def get_graph_stats():
     """Get graph database statistics for dashboard."""
@@ -241,11 +294,12 @@ async def sync_sqlite_to_neo4j():
 
 @app.get("/api/v1/graph/health")
 async def graph_health_check():
-    """Check Neo4j, Ollama, and MinIO connectivity."""
+    """Check Neo4j, Gemini API, and MinIO connectivity."""
     global USE_MINIO
     status = {
         "neo4j": False,
-        "ollama": False,
+        "gemini": False,
+        "gemini_error": None,
         "minio": False,
         "models_loaded": False
     }
@@ -257,13 +311,23 @@ async def graph_health_check():
     except Exception:
         pass
     
-    # Check Ollama
+    # Check Google Gemini API
     try:
-        import requests
-        resp = requests.get("http://localhost:11434/api/tags", timeout=5)
-        status["ollama"] = resp.status_code == 200
-    except Exception:
-        pass
+        import google.generativeai as genai
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            raise RuntimeError("GOOGLE_API_KEY not set")
+
+        model_name = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(model_name)
+        _ = model.generate_content("Say OK", generation_config={"max_output_tokens": 5})
+        status["gemini"] = True
+    except Exception as e:
+        # Do not include secrets; exception messages should be safe, but keep it minimal.
+        status["gemini_error"] = f"{type(e).__name__}: {e}"
+        log_event(f"Gemini check failed: {status['gemini_error']}", "WARNING")
     
     # Check MinIO
     try:
@@ -507,6 +571,27 @@ def process_media_background(media_id: str, file_path: Path, media_type: str, la
             db.add(incident)
             db.commit()
             log_event(f"Incident created: {incident.id}", "SUCCESS")
+            
+            # Step 5: Ingest into Neo4j Graph Database
+            try:
+                from backend.ingest import GraphIngestor
+                from backend.graph_db import test_connection
+                
+                if test_connection():
+                    ingestor = GraphIngestor()
+                    graph_result = ingestor.ingest_detection_result(
+                        media_id=media_id,
+                        detection_results=results,
+                        lat=lat or 0.0,
+                        lng=lng or 0.0,
+                        reporter_name=media_item.reporter_name if media_item else None,
+                        reporter_phone=media_item.reporter_phone if media_item else None
+                    )
+                    log_event(f"Ingested to Neo4j: {graph_result['anomalies_created']} anomalies created", "SUCCESS")
+                else:
+                    log_event("Neo4j not connected, skipping graph ingestion", "WARNING")
+            except Exception as graph_err:
+                log_event(f"Graph ingestion error: {graph_err}", "WARNING")
 
     except Exception as e:
         log_event(f"Error processing media {media_id}: {e}", "ERROR")

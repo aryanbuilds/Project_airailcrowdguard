@@ -16,7 +16,8 @@ const ChatComponent = dynamic(() => import("@/components/ChatComponent"), {
 
 interface HealthStatus {
   neo4j: boolean;
-  ollama: boolean;
+  gemini: boolean;
+  minio: boolean;
   models_loaded: boolean;
 }
 
@@ -45,7 +46,7 @@ export default function CopilotPage() {
         const data = await resp.json();
         setHealth(data);
       } catch {
-        setHealth({ neo4j: false, ollama: false, models_loaded: false });
+        setHealth({ neo4j: false, gemini: false, minio: false, models_loaded: false });
       }
     };
 
@@ -122,8 +123,8 @@ export default function CopilotPage() {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-600">
                   <Bot className="h-4 w-4" />
-                  <span>Ollama</span>
-                  <StatusIcon ok={health.ollama} />
+                  <span>Gemini</span>
+                  <StatusIcon ok={health.gemini} />
                 </div>
                 <div className="flex items-center gap-2 text-sm text-slate-600">
                   <Activity className="h-4 w-4" />
@@ -213,18 +214,17 @@ export default function CopilotPage() {
               </div>
             )}
 
-            {health && !health.ollama && (
+            {health && !health.gemini && (
               <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
                 <div className="flex items-start gap-3">
                   <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <h4 className="font-medium text-amber-800">Ollama Not Running</h4>
+                    <h4 className="font-medium text-amber-800">Gemini API Issue</h4>
                     <p className="text-sm text-amber-700 mt-1">
-                      Start Ollama with Llama 3 for AI responses.
+                      Check your Google API key in .env file.
                     </p>
                     <pre className="mt-2 text-xs bg-amber-100 p-2 rounded font-mono">
-                      ollama pull llama3{"\n"}
-                      ollama serve
+                      GOOGLE_API_KEY=your_api_key
                     </pre>
                   </div>
                 </div>
