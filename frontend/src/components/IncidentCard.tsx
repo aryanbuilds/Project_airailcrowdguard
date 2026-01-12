@@ -23,6 +23,10 @@ export default function IncidentCard({
   onClick: (id: string) => void 
 }) {
   const date = new Date(incident.timestamp).toLocaleString();
+  const faultTypeLabel = (incident.fault_type ?? "Unknown").replace(/_/g, " ");
+  const lat = Number(incident.lat);
+  const lng = Number(incident.lng);
+  const tamperingScore = Number(incident.tampering_score);
 
   return (
     <div 
@@ -32,7 +36,7 @@ export default function IncidentCard({
       <div className="mb-4 flex items-center justify-between">
         <div className="flex flex-col">
           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{incident.id}</span>
-          <h3 className="mt-1 font-bold text-slate-900 capitalize">{incident.fault_type.replace(/_/g, " ")}</h3>
+          <h3 className="mt-1 font-bold text-slate-900 capitalize">{faultTypeLabel}</h3>
         </div>
         <SeverityBadge severity={incident.severity} />
       </div>
@@ -44,11 +48,18 @@ export default function IncidentCard({
         </div>
         <div className="flex items-center gap-2">
           <MapPin className="h-4 w-4 text-slate-400" />
-          <span>{incident.lat.toFixed(4)}, {incident.lng.toFixed(4)}</span>
+          <span>
+            {Number.isFinite(lat) && Number.isFinite(lng) ? `${lat.toFixed(4)}, ${lng.toFixed(4)}` : "—"}
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <Fingerprint className="h-4 w-4 text-slate-400" />
-          <span>Trust Score: <span className="font-bold text-slate-900">{(incident.tampering_score * 100).toFixed(0)}%</span></span>
+          <span>
+            Trust Score:{" "}
+            <span className="font-bold text-slate-900">
+              {Number.isFinite(tamperingScore) ? `${(tamperingScore * 100).toFixed(0)}%` : "—"}
+            </span>
+          </span>
         </div>
       </div>
 

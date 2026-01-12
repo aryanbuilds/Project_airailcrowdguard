@@ -1,14 +1,13 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Polyline } from "react-leaflet";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
-import { ExternalLink } from "lucide-react";
 
 // Fix for default marker icons in Next.js
-const deleteIcon = (L.Icon.Default.prototype as any)._getIconUrl;
+const deleteIcon = (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 if (deleteIcon) {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
+  delete (L.Icon.Default.prototype as unknown as { _getIconUrl?: unknown })._getIconUrl;
 }
 
 L.Icon.Default.mergeOptions({
@@ -30,18 +29,10 @@ interface IncidentMapProps {
   onMarkerClick: (id: string) => void;
 }
 
-// Component to handle map center updates
-function MapUpdater({ center }: { center: [number, number] }) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView(center, map.getZoom());
-  }, [center, map]);
-  return null;
-}
-
 // Custom hook to fix map sizing
 function MapResizer() {
   const map = useMap();
+
   useEffect(() => {
     const resizeObserver = new ResizeObserver(() => {
       map.invalidateSize();
@@ -55,13 +46,13 @@ function MapResizer() {
 export default function IncidentMap({ incidents, onMarkerClick }: IncidentMapProps) {
   // Delhi coordinates as default center
   const defaultCenter: [number, number] = [28.6139, 77.2090];
-  const [mounted, setMounted] = useState(false);
+  const [mounted] = useState(() => typeof window !== "undefined");
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  if (!mounted) {
+    return <div className="h-full w-full bg-slate-100 flex items-center justify-center">Loading Map...</div>;
+  }
 
-  if (!mounted) return <div className="h-full w-full bg-slate-100 flex items-center justify-center">Loading Map...</div>;
+  const safeIncidents = Array.isArray(incidents) ? incidents : [];
 
   const createCustomIcon = (severity: string) => {
     let colorClass = "";
@@ -103,38 +94,48 @@ export default function IncidentMap({ incidents, onMarkerClick }: IncidentMapPro
         />
         <MapResizer />
         
-        {incidents.map((incident) => (
-          <Marker 
-            key={incident.id} 
-            position={[incident.lat, incident.lng]}
-            icon={createCustomIcon(incident.severity)}
-            eventHandlers={{
-              click: () => onMarkerClick(incident.id),
-            }}
-          >
-            <Popup>
-              <div className="p-1 min-w-[160px]">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{incident.id}</span>
-                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${
-                    incident.severity === 'HIGH' ? 'bg-red-100 text-red-700' : 
-                    incident.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-                  }`}>
-                    {incident.severity}
-                  </span>
+        {safeIncidents.map((incident) => {
+          const lat = Number(incident.lat);
+          const lng = Number(incident.lng);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+
+          const faultTypeLabel = (incident.fault_type ?? "Unknown").replace(/_/g, " ");
+
+          return (
+            <Marker
+              key={incident.id}
+              position={[lat, lng]}
+              icon={createCustomIcon(incident.severity)}
+              eventHandlers={{
+                click: () => onMarkerClick(incident.id),
+              }}
+            >
+              <Popup>
+                <div className="p-1 min-w-[160px]">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">{incident.id}</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase ${
+                      incident.severity === 'HIGH' ? 'bg-red-100 text-red-700' :
+                      incident.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-700' :
+                      incident.severity === 'LOW' ? 'bg-emerald-100 text-emerald-700' :
+                      'bg-blue-100 text-blue-700'
+                    }`}>
+                      {incident.severity}
+                    </span>
+                  </div>
+                  <p className="font-bold text-slate-900 capitalize text-sm mb-2">{faultTypeLabel}</p>
+
+                  <button
+                    onClick={() => onMarkerClick(incident.id)}
+                    className="w-full py-1.5 text-xs font-bold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
+                  >
+                    View Full Detail
+                  </button>
                 </div>
-                <p className="font-bold text-slate-900 capitalize text-sm mb-2">{incident.fault_type.replace(/_/g, ' ')}</p>
-                
-                <button 
-                  onClick={() => onMarkerClick(incident.id)}
-                  className="w-full py-1.5 text-xs font-bold bg-slate-900 text-white rounded-lg hover:bg-slate-800 transition-colors"
-                >
-                  View Full Detail
-                </button>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+              </Popup>
+            </Marker>
+          );
+        })}
         
         <StationMarkers />
         <SimulationLayer />
@@ -222,7 +223,18 @@ function SimulationLayer() {
   const [isRunning, setIsRunning] = useState(false);
   const requestRef = useRef<number>();
 
-  const updateSim = () => {
+  const isRunningRef = useRef(false);
+  const activeAlertRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+
+  useEffect(() => {
+    activeAlertRef.current = activeAlert;
+  }, [activeAlert]);
+
+  const updateSim = useCallback(function tick() {
     setTrains(prevTrains => {
       let allStopped = true;
 
@@ -234,20 +246,20 @@ function SimulationLayer() {
         }
 
         allStopped = false;
-        let newProgress = train.progress + 0.0015; // Speed factor
+  const newProgress = train.progress + 0.0015; // Speed factor
         
         // CRASH / STOP LOGIC
         if (train.hasTampering && train.tamperIndex) {
           // If approaching tampering spot
            if (newProgress >= train.tamperIndex - 0.02 && newProgress < train.tamperIndex) {
-             if (activeAlert === train.id) {
+             if (activeAlertRef.current === train.id) {
                // SUCCESSFUL STOP
                return { ...train, progress: newProgress, status: 'STOPPED' };
              }
            }
            // Hit the tampering spot without alert
            if (newProgress >= train.tamperIndex) {
-             if (!activeAlert) {
+             if (!activeAlertRef.current) {
                 // CRASH!
                 return { ...train, progress: train.tamperIndex, status: 'CRASHED' };
              }
@@ -278,12 +290,12 @@ function SimulationLayer() {
         };
       });
 
-      if (allStopped && isRunning) setIsRunning(false);
+      if (allStopped && isRunningRef.current) setIsRunning(false);
       return nextTrains;
     });
 
-    if (isRunning) requestRef.current = requestAnimationFrame(updateSim);
-  };
+    if (isRunningRef.current) requestRef.current = requestAnimationFrame(tick);
+  }, []);
 
   useEffect(() => {
     if (isRunning) {
@@ -294,7 +306,7 @@ function SimulationLayer() {
     return () => {
       if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
-  }, [isRunning, activeAlert]);
+  }, [isRunning, updateSim]);
 
   const startSimulation = () => {
     setTrains(SCENARIOS.map(s => ({

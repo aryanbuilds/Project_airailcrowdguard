@@ -52,6 +52,11 @@ export default function IncidentDetailModal({
   if (loading) return null;
   if (!incident) return null;
 
+  const faultTypeLabel = (incident.fault_type ?? "Unknown").replace(/_/g, " ");
+  const lat = Number(incident.lat);
+  const lng = Number(incident.lng);
+  const tamperingScore = Number(incident.tampering_score);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 lg:p-8">
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={onClose} />
@@ -93,7 +98,7 @@ export default function IncidentDetailModal({
           <div className="flex items-center justify-between mb-6">
             <div>
               <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{incident.id}</span>
-              <h2 className="text-2xl font-bold text-slate-900 capitalize">{incident.fault_type.replace(/_/g, ' ')}</h2>
+              <h2 className="text-2xl font-bold text-slate-900 capitalize">{faultTypeLabel}</h2>
             </div>
             <button 
               onClick={onClose}
@@ -110,7 +115,9 @@ export default function IncidentDetailModal({
             </div>
             <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
               <p className="text-xs font-bold text-slate-400 uppercase mb-1">Confidence</p>
-              <span className="text-lg font-bold text-slate-900">{(incident.tampering_score * 100).toFixed(0)}%</span>
+              <span className="text-lg font-bold text-slate-900">
+                {Number.isFinite(tamperingScore) ? `${(tamperingScore * 100).toFixed(0)}%` : "—"}
+              </span>
             </div>
           </div>
 
@@ -126,8 +133,10 @@ export default function IncidentDetailModal({
               <MapPin className="h-5 w-5 text-slate-400 mt-0.5" />
               <div>
                 <p className="text-sm font-bold text-slate-900 italic">Location</p>
-                <p className="text-sm text-slate-600">{incident.lat.toFixed(6)}, {incident.lng.toFixed(6)}</p>
-                <a href={`https://www.google.com/maps?q=${incident.lat},${incident.lng}`} target="_blank" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                <p className="text-sm text-slate-600">
+                  {Number.isFinite(lat) && Number.isFinite(lng) ? `${lat.toFixed(6)}, ${lng.toFixed(6)}` : "—"}
+                </p>
+                <a href={`https://www.google.com/maps?q=${lat},${lng}`} target="_blank" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
                   View on Google Maps <ExternalLink className="h-3 w-3" />
                 </a>
               </div>
